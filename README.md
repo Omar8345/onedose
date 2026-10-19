@@ -34,6 +34,16 @@ Open [http://localhost:3000](http://localhost:3000). The public Appwrite
 endpoint, project ID, and database ID are included in `.env.example`. Add your
 own server API key to `.env.local`; never commit it.
 
+Provision the TablesDB schema after adding an API key with database schema
+permissions:
+
+```bash
+npm run db:provision
+```
+
+The command is idempotent: it creates missing tables and verifies tables that
+already exist. It stops instead of silently changing an incomplete schema.
+
 ## Product contract
 
 The safety invariants and edge cases are documented in
