@@ -38,4 +38,6 @@ own server API key to `.env.local`; never commit it.
 
 The safety invariants and edge cases are documented in
 [`docs/product.md`](docs/product.md). Technical choices are recorded in
-[`docs/decisions.md`](docs/decisions.md).
+[`docs/decisions.md`](docs/decisions.md). The TablesDB tables, indexes,
+permissions, and completion transaction are described in
+[`docs/data-model.md`](docs/data-model.md).

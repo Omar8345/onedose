@@ -27,3 +27,16 @@ a duplicate-completion race.
 Corrections add an event that supersedes a previous event. The original record
 remains available for the handoff timeline and audit view.
 
+## 004 — serialize completion through the occurrence row
+
+**Status:** accepted
+
+Every outcome mutation updates its occurrence inside a TablesDB transaction.
+Two caregivers acting concurrently therefore contend on the same row. Appwrite
+allows one transaction to commit and rejects the stale transaction with a
+conflict; the rejected request refetches and returns the winner.
+
+The same transaction touches active membership, creates an append-only audit
+event, and writes a deterministic idempotency receipt. A partial history or a
+completion without its audit evidence cannot be committed.
+
