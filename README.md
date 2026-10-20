@@ -18,11 +18,13 @@ The current foundation includes:
 - a guided outcome-recording flow
 - an interactive conflict demo showing which concurrent attempt won
 - Appwrite browser and server client boundaries
+- passwordless Email OTP authentication and private Appwrite Teams
+- transactional onboarding for a user's first circle and daily action
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
 
-The connected demo uses synthetic server-only identities while authentication
-and real-user onboarding are added to the completed data layer.
+The seed remains available for repeatable testing, while real users can sign in,
+create their own private care circle, and record a shared outcome.
 
 ## Run locally
 
@@ -34,7 +36,9 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The public Appwrite
 endpoint, project ID, and database ID are included in `.env.example`. Add your
-own server API key to `.env.local`; never commit it.
+own server API key to `.env.local`; never commit it. The key needs TablesDB
+schema/read/write permissions plus `sessions.read` and `sessions.write` for the
+server-rendered Email OTP session flow.
 
 Provision the TablesDB schema after adding an API key with database schema
 permissions:

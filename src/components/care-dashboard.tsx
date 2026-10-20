@@ -5,17 +5,14 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  ChevronDown,
   CircleAlert,
   Clock3,
-  History,
   Home,
+  LogOut,
   Menu,
   MessageSquareText,
-  Plus,
   RefreshCw,
   ShieldCheck,
-  Users,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -51,6 +48,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [isRefreshing, startRefresh] = useTransition();
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
+  const dueCount = occurrences.filter((item) => item.status === "due").length;
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
@@ -115,14 +113,13 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
 
         <div className="circle-switcher">
           <span className="eyebrow">Care circle</span>
-          <button>
+          <div className="circle-switcher-row">
             <span className="avatar avatar--large">{initials(circle.recipient).slice(0, 1)}</span>
             <span>
               <strong>{circle.recipient}</strong>
               <small>{circle.members.length} caregivers</small>
             </span>
-            <ChevronDown size={16} />
-          </button>
+          </div>
         </div>
 
         <nav>
@@ -132,8 +129,6 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           <NavButton active={view === "handoff"} onClick={() => setView("handoff")} icon={<MessageSquareText size={18} />}>
             Handoff
           </NavButton>
-          <NavButton icon={<History size={18} />}>History</NavButton>
-          <NavButton icon={<Users size={18} />}>Care circle</NavButton>
         </nav>
 
         <div className="sidebar-proof">
@@ -150,7 +145,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             <strong>{viewer.name}</strong>
             <small>Owner · Sign out</small>
           </span>
-          <ChevronDown size={15} />
+          <LogOut size={15} />
         </button>
       </aside>
 
@@ -165,7 +160,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
                 </span>
               ))}
             </div>
-            <span><i /> All caught up</span>
+            <span><i className={dueCount ? "presence-dot--due" : ""} /> {dueCount ? `${dueCount} due now` : "All caught up"}</span>
           </div>
           <button className="secondary-button" onClick={() => startRefresh(() => router.refresh())} disabled={isRefreshing}>
             <RefreshCw size={16} /> {isRefreshing ? "Refreshing…" : "Refresh live data"}
@@ -177,6 +172,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             circle={circle}
             occurrences={occurrences}
             onComplete={openCompletion}
+            onOpenHandoff={() => setView("handoff")}
           />
         ) : (
           <HandoffView circle={circle} occurrences={occurrences} />
@@ -190,8 +186,6 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         <button className={view === "handoff" ? "is-active" : ""} onClick={() => setView("handoff")}>
           <MessageSquareText size={19} /><span>Handoff</span>
         </button>
-        <button><History size={19} /><span>History</span></button>
-        <button><Users size={19} /><span>Circle</span></button>
       </nav>
 
       {demoState !== "idle" && selected ? (
@@ -241,10 +235,12 @@ function TodayView({
   circle,
   occurrences,
   onComplete,
+  onOpenHandoff,
 }: {
   circle: CareCircle;
   occurrences: Occurrence[];
   onComplete: (occurrence: Occurrence) => void;
+  onOpenHandoff: () => void;
 }) {
   const dueCount = occurrences.filter((item) => item.status === "due").length;
   const focus = occurrences.find((item) => item.status === "due") ?? occurrences.find((item) => item.status === "upcoming") ?? occurrences[0];
@@ -280,7 +276,6 @@ function TodayView({
         <section>
           <div className="section-heading">
             <div><span className="eyebrow">Schedule</span><h2>Today’s care</h2></div>
-            <button className="text-button"><Plus size={16} /> Add action</button>
           </div>
           <div className="schedule-list">
             {occurrences.map((item) => (
@@ -305,7 +300,7 @@ function TodayView({
             ))}
             {!circle.timeline.length ? <p className="empty-copy">No outcomes have been recorded yet.</p> : null}
           </div>
-          <button className="wide-link">Open full handoff <ArrowRight size={16} /></button>
+          <button className="wide-link" onClick={onOpenHandoff}>Open full handoff <ArrowRight size={16} /></button>
         </aside>
       </div>
     </div>
@@ -342,7 +337,6 @@ function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences:
           <h1>Handoff</h1>
           <p>A readable history for whoever takes over next.</p>
         </div>
-        <button className="primary-button"><Plus size={17} /> Add note</button>
       </div>
 
       <div className="handoff-layout">

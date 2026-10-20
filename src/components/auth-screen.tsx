@@ -6,7 +6,7 @@ import { useState } from "react";
 
 export function AuthScreen() {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [step, setStep] = useState<"email" | "code" | "profile">("email");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [userId, setUserId] = useState("");
@@ -43,7 +43,27 @@ export function AuthScreen() {
       const response = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, secret, name }),
+        body: JSON.stringify({ userId, secret }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Please try again.");
+      if (payload.needsProfile) setStep("profile");
+      else router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Please try again.");
+      setBusy(false);
+    }
+  }
+
+  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Please try again.");
@@ -74,13 +94,12 @@ export function AuthScreen() {
               <h2>Continue with email</h2>
               <p>We’ll send you a six-digit code. New accounts are created automatically.</p>
               <form onSubmit={sendCode}>
-                <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required minLength={2} /></label>
                 <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required /></label>
                 {error ? <p className="form-error" role="alert">{error}</p> : null}
                 <button className="primary-button full-button" disabled={busy}>{busy ? "Sending code…" : <>Email me a code <ArrowRight size={17} /></>}</button>
               </form>
             </>
-          ) : (
+          ) : step === "code" ? (
             <>
               <span className="auth-mail-icon"><MailCheck size={24} /></span>
               <span className="eyebrow">Check your inbox</span>
@@ -92,6 +111,17 @@ export function AuthScreen() {
                 <button className="primary-button full-button" disabled={busy}>{busy ? "Verifying…" : <>Verify and continue <ArrowRight size={17} /></>}</button>
               </form>
               <button className="auth-switch" onClick={() => { setStep("email"); setError(""); }}><ArrowLeft size={15} /> Use a different email</button>
+            </>
+          ) : (
+            <>
+              <span className="eyebrow">One last detail</span>
+              <h2>What should we call you?</h2>
+              <p>This is the name other caregivers will see in the shared handoff.</p>
+              <form onSubmit={saveProfile}>
+                <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required minLength={2} autoFocus /></label>
+                {error ? <p className="form-error" role="alert">{error}</p> : null}
+                <button className="primary-button full-button" disabled={busy}>{busy ? "Saving…" : <>Continue <ArrowRight size={17} /></>}</button>
+              </form>
             </>
           )}
         </div>

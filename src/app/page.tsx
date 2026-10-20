@@ -3,14 +3,14 @@ import { Suspense } from "react";
 
 import { CareDashboard } from "@/components/care-dashboard";
 import { AuthScreen } from "@/components/auth-screen";
+import { AppLoading } from "@/components/app-loading";
 import { OnboardingScreen } from "@/components/onboarding-screen";
-import { demoCircle } from "@/lib/demo-data";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCareCircle } from "@/lib/data/get-care-circle";
 
 export default function Home() {
   return (
-    <Suspense fallback={<CareDashboard circle={demoCircle} viewer={{ id: "demo_omar", name: "Omar" }} />}>
+    <Suspense fallback={<AppLoading />}>
       <LiveDashboard />
     </Suspense>
   );
