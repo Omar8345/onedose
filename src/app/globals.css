@@ -225,6 +225,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .auth-card input:focus { outline: 3px solid rgba(93, 198, 154, .32); border-color: var(--sage); }
 .form-error { color: #a64535; background: var(--coral-soft); border-radius: 10px; padding: 11px 13px; margin: 0; font-size: 13px; }
 .auth-switch { width: 100%; border: 0; background: transparent; color: var(--sage); padding: 18px 8px; cursor: pointer; font-weight: 650; }
+.auth-switch-content { width: max-content; margin-inline: auto; display: grid; grid-template-columns: auto max-content; align-items: center; gap: 8px; white-space: nowrap; }
 .auth-mail-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; color: var(--sage); background: var(--sage-soft); margin-bottom: 20px; }
 .otp-input { font: 650 25px var(--font-mono), monospace !important; letter-spacing: .28em; text-align: center; }
 .setup-shell { min-height: 100vh; background: var(--paper); display: grid; place-items: center; padding: 24px; }

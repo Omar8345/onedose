@@ -47,8 +47,12 @@ export function AuthScreen({ initialStep = "email" }: { initialStep?: "email" | 
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Please try again.");
-      if (payload.needsProfile) setStep("profile");
-      else router.refresh();
+      if (payload.needsProfile) {
+        setBusy(false);
+        setStep("profile");
+      } else {
+        router.refresh();
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Please try again.");
       setBusy(false);
@@ -111,7 +115,7 @@ export function AuthScreen({ initialStep = "email" }: { initialStep?: "email" | 
                 {error ? <p className="form-error" role="alert">{error}</p> : null}
                 <button className="primary-button full-button" disabled={busy}>{busy ? "Verifying…" : <>Verify and continue <ArrowRight size={17} /></>}</button>
               </form>
-              <button className="auth-switch" onClick={() => { setStep("email"); setError(""); }}><ArrowLeft size={15} /> Use a different email</button>
+              <button className="auth-switch" onClick={() => { setStep("email"); setError(""); }}><span className="auth-switch-content"><ArrowLeft size={15} /> <span>Use a different email</span></span></button>
             </>
           ) : (
             <>
