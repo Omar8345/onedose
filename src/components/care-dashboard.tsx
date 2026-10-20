@@ -414,9 +414,9 @@ function CompletionDialog({
         {state === "saving" ? (
           <div className="result-state">
             <span className="spinner" />
-            <span className="section-kicker">Checking current state</span>
-            <h2 id="dialog-title">Saving one clear record…</h2>
-            <p>The server decides which attempt wins.</p>
+            <span className="section-kicker">Checking the shared record</span>
+            <h2 id="dialog-title">Saving this care update…</h2>
+            <p>We’re making sure it is recorded only once.</p>
           </div>
         ) : null}
 
@@ -426,7 +426,7 @@ function CompletionDialog({
             <span className="section-kicker">Recorded</span>
             <h2 id="dialog-title">{occurrence.title} completed</h2>
             <p>Everyone in {circleName} now sees the same result.</p>
-            <div className="proof-row"><ShieldCheck size={19} /><span><strong>Completion + audit event</strong><small>Committed together with one idempotency key</small></span></div>
+            <div className="proof-row"><ShieldCheck size={19} /><span><strong>Update and history saved together</strong><small>One confirmed record for everyone in the care circle</small></span></div>
           </div>
         ) : null}
 
