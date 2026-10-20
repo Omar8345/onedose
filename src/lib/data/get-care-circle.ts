@@ -6,7 +6,7 @@ import { getServerAppwrite } from "@/lib/appwrite/server";
 import { TABLES, type OccurrenceRow } from "@/lib/domain/schema";
 import type { CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 
-type CircleRow = Models.Row & { name: string; timezone: string };
+type CircleRow = Models.Row & { name: string; timezone: string; teamId: string };
 type RecipientRow = Models.Row & { displayName: string };
 type ScheduleRow = Models.Row & { title: string; instruction: string | null; timezone: string };
 type MemberRow = Models.Row & {
@@ -31,20 +31,26 @@ function formatTime(value: string, timezone: string) {
 }
 
 export async function getCareCircle(circleId: string, viewer: { id: string; name: string }): Promise<CareCircle> {
-  const { databaseId, tables } = getServerAppwrite();
-  const [circle, recipients, schedules, memberships, occurrences, events] = await Promise.all([
-    tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId }),
+  const { databaseId, tables, teams } = getServerAppwrite();
+  const circle = await tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId });
+  const [recipients, schedules, circleMembers, occurrences, events, teamMemberships] = await Promise.all([
     tables.listRows<RecipientRow>({ databaseId, tableId: TABLES.recipients, queries: [Query.equal("circleId", [circleId]), Query.limit(25)], total: false }),
     tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.equal("active", [true]), Query.limit(100)], total: false }),
     tables.listRows<MemberRow>({ databaseId, tableId: TABLES.members, queries: [Query.equal("circleId", [circleId]), Query.equal("status", ["active"]), Query.limit(25)], total: false }),
     tables.listRows<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, queries: [Query.equal("circleId", [circleId]), Query.orderAsc("dueAt"), Query.limit(100)], total: false }),
     tables.listRows<EventRow>({ databaseId, tableId: TABLES.events, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("recordedAt"), Query.limit(50)], total: false }),
+    teams.listMemberships({ teamId: circle.teamId, total: false }),
   ]);
 
   const scheduleById = new Map(schedules.rows.map((schedule) => [schedule.$id, schedule]));
   const occurrenceById = new Map(occurrences.rows.map((occurrence) => [occurrence.$id, occurrence]));
   const recipient = recipients.rows[0];
-  const person = (actorId: string) => actorId === viewer.id ? viewer.name : "Another caregiver";
+  const teamMemberNames = new Map(
+    teamMemberships.memberships
+      .filter((membership) => membership.confirm)
+      .map((membership) => [membership.userId, membership.userName.trim()]),
+  );
+  const person = (actorId: string) => actorId === viewer.id ? viewer.name : teamMemberNames.get(actorId) || "Caregiver";
   const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
     if (!schedule) return [];
@@ -75,16 +81,18 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     };
   });
 
-  const members = memberships.rows.map((membership, index) => {
+  const members = circleMembers.rows
+    .filter((membership) => teamMemberNames.has(membership.userId))
+    .map((membership, index) => {
     const name = person(membership.userId);
-    return { name, initials: initials(name), color: (["coral", "sage", "amber"] as const)[index % 3] };
+    return { id: membership.userId, name, initials: initials(name), color: (["coral", "sage", "amber"] as const)[index % 3] };
   });
 
   return {
     recipient: circle.name || `${recipient?.displayName ?? "Care"} circle`,
     timezone: circle.timezone,
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
-    viewerRole: memberships.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver",
+    viewerRole: circleMembers.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver",
     members,
     occurrences: occurrenceViews,
     timeline,

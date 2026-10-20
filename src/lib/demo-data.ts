@@ -6,9 +6,9 @@ export const demoCircle: CareCircle = {
   timezone: "Asia/Dubai · UTC+4",
   dateLabel: "Monday, 19 October",
   members: [
-    { name: "Omar", initials: "OM", color: "coral" },
-    { name: "Maya", initials: "MC", color: "sage" },
-    { name: "Sam", initials: "SK", color: "amber" },
+    { id: "demo-omar", name: "Omar", initials: "OM", color: "coral" },
+    { id: "demo-maya", name: "Maya", initials: "MC", color: "sage" },
+    { id: "demo-sam", name: "Sam", initials: "SK", color: "amber" },
   ],
   occurrences: [
     {

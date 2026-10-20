@@ -76,7 +76,7 @@ export function OnboardingScreen({ name }: { name: string }) {
           <h1>Set up the first shared handoff.</h1>
           <p>Start with one person and one daily care action. You can invite the rest of the circle afterward.</p>
         </div>
-        <div className="onboarding-proof"><ShieldCheck size={21} /><span><strong>Private Appwrite Team ready</strong><small>Care data stays inside your circle.</small></span></div>
+        <div className="onboarding-proof"><ShieldCheck size={21} /><span><strong>Private care circle ready</strong><small>Care data stays inside your circle.</small></span></div>
       </section>
 
       <section className="onboarding-panel">

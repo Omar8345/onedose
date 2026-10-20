@@ -62,7 +62,7 @@ export async function createCareCircle({
   // Intl throws for unknown zones before any rows are staged.
   new Intl.DateTimeFormat("en", { timeZone: input.timezone }).format();
 
-  const { databaseId, tables } = getServerAppwrite();
+  const { databaseId, tables, teams } = getServerAppwrite();
   const circleId = ID.unique();
   const recipientId = ID.unique();
   const scheduleId = ID.unique();
@@ -130,10 +130,12 @@ export async function createCareCircle({
     });
     const recovered = existing.rows[0];
     if (!recovered) throw error;
+    await teams.updateName(teamId, input.circleName);
     await account.updatePrefs({ prefs: { primaryTeamId: teamId, circleId: recovered.$id } as OneDosePrefs });
     return recovered.$id;
   }
 
+  await teams.updateName(teamId, input.circleName);
   await account.updatePrefs({ prefs: { primaryTeamId: teamId, circleId } as OneDosePrefs });
   return circleId;
 }

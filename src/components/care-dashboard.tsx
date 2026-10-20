@@ -164,7 +164,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           <div className="presence">
             <div className="avatar-stack" aria-label={`${circle.members.length} caregivers in this circle`}>
               {circle.members.map((member) => (
-                <span key={member.name} className={`avatar avatar--${member.color}`} title={member.name}>
+                <span key={member.id} className={`avatar avatar--${member.color}`} title={member.name}>
                   {member.initials}
                 </span>
               ))}

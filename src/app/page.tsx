@@ -28,7 +28,7 @@ async function LiveDashboard() {
     await ensurePrimaryTeam(secret, user.name);
   }
   if (!user.prefs.circleId) return <OnboardingScreen name={user.name || "there"} />;
-  const viewer = { id: user.$id, name: user.name || "Caregiver" };
+  const viewer = { id: user.$id, name: user.name || "Caregiver", email: user.email };
   const circle = await getCareCircle(user.prefs.circleId, viewer);
   return <CareDashboard circle={circle} viewer={viewer} />;
 }
