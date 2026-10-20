@@ -150,6 +150,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .timeline-time { color: var(--muted); font: 500 10px var(--font-mono), monospace; display: block; margin-bottom: 7px; }
 .timeline-item strong { font-size: 14px; }
 .timeline-item p { color: var(--muted); line-height: 1.5; font-size: 13px; margin: 6px 0 0; }
+.empty-copy { color: var(--muted); line-height: 1.55; font-size: 13px; margin: 18px 0; }
 
 .handoff-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 60px; }
 .date-divider { display: flex; align-items: center; gap: 15px; color: var(--muted); font: 600 10px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 12px; }

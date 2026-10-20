@@ -13,68 +13,90 @@ import {
   Menu,
   MessageSquareText,
   Plus,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
   Users,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import type { CareCircle, Occurrence } from "@/lib/types";
 
 type View = "today" | "handoff";
-type DemoState = "idle" | "confirm" | "saving" | "saved" | "race";
+type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
+
+type CompletionResponse = {
+  kind: "accepted" | "replayed" | "already_recorded";
+  occurrence: {
+    id: string;
+    status: string;
+    completedBy: string | null;
+    completedAt: string | null;
+  };
+};
+
+const caregiverNames: Record<string, string> = {
+  demo_omar: "You",
+  demo_maya: "Maya",
+};
 
 export function CareDashboard({ circle }: { circle: CareCircle }) {
+  const router = useRouter();
   const [view, setView] = useState<View>("today");
   const [demoState, setDemoState] = useState<DemoState>("idle");
   const [selected, setSelected] = useState<Occurrence | null>(null);
-  const [completed, setCompleted] = useState(false);
-  const [completedBy, setCompletedBy] = useState<"You" | "Maya">("You");
+  const [occurrenceOverrides, setOccurrenceOverrides] = useState<Record<string, Occurrence>>({});
   const [note, setNote] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isRefreshing, startRefresh] = useTransition();
 
-  const occurrences = useMemo(
-    () =>
-      circle.occurrences.map((item) =>
-        completed && item.id === "occ-midday-action"
-          ? {
-              ...item,
-              status: "completed" as const,
-              completedBy,
-              completedAt: "Now",
-            }
-          : item,
-      ),
-    [circle.occurrences, completed, completedBy],
-  );
+  const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
+    setIdempotencyKey(crypto.randomUUID());
+    setErrorMessage("");
     setDemoState("confirm");
   };
 
-  const confirmCompletion = () => {
+  const confirmCompletion = async () => {
+    if (!selected) return;
     setDemoState("saving");
-    window.setTimeout(() => {
-      setCompletedBy("You");
-      setCompleted(true);
-      setDemoState("saved");
-    }, 750);
-  };
+    try {
+      const response = await fetch(`/api/demo/occurrences/${selected.id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idempotencyKey, note: note || undefined }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The outcome could not be recorded.");
 
-  const runRace = () => {
-    setSelected(circle.occurrences[1]);
-    setDemoState("saving");
-    window.setTimeout(() => {
-      setCompletedBy("Maya");
-      setCompleted(true);
-      setDemoState("race");
-    }, 900);
+      const result = payload as CompletionResponse;
+      const completedBy = result.occurrence.completedBy
+        ? caregiverNames[result.occurrence.completedBy] ?? "Another caregiver"
+        : "Caregiver";
+      const completedAt = result.occurrence.completedAt
+        ? new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(result.occurrence.completedAt))
+        : "Now";
+
+      const completed = { ...selected, status: "completed" as const, completedBy, completedAt };
+      setOccurrenceOverrides((items) => ({ ...items, [completed.id]: completed }));
+      setSelected(completed);
+      setDemoState(result.kind === "already_recorded" ? "race" : "saved");
+      startRefresh(() => router.refresh());
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "The outcome could not be recorded.");
+      setDemoState("error");
+    }
   };
 
   const closeDialog = () => {
     setDemoState("idle");
     setSelected(null);
     setNote("");
+    setIdempotencyKey("");
+    setErrorMessage("");
   };
 
   return (
@@ -93,7 +115,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
             <span className="avatar avatar--large">N</span>
             <span>
               <strong>{circle.recipient}</strong>
-              <small>3 caregivers</small>
+              <small>{circle.members.length} caregivers</small>
             </span>
             <ChevronDown size={16} />
           </button>
@@ -132,7 +154,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
         <header className="topbar">
           <div className="topbar-mobile"><Logo /></div>
           <div className="presence">
-            <div className="avatar-stack" aria-label="Three caregivers online">
+            <div className="avatar-stack" aria-label={`${circle.members.length} caregivers in this circle`}>
               {circle.members.map((member) => (
                 <span key={member.name} className={`avatar avatar--${member.color}`} title={member.name}>
                   {member.initials}
@@ -141,8 +163,8 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
             </div>
             <span><i /> All caught up</span>
           </div>
-          <button className="secondary-button" onClick={runRace}>
-            <Sparkles size={16} /> Run conflict demo
+          <button className="secondary-button" onClick={() => startRefresh(() => router.refresh())} disabled={isRefreshing}>
+            <RefreshCw size={16} /> {isRefreshing ? "Refreshing…" : "Refresh live data"}
           </button>
         </header>
 
@@ -153,7 +175,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
             onComplete={openCompletion}
           />
         ) : (
-          <HandoffView circle={circle} />
+          <HandoffView circle={circle} occurrences={occurrences} />
         )}
       </section>
 
@@ -173,6 +195,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
           state={demoState}
           occurrence={selected}
           note={note}
+          errorMessage={errorMessage}
           onNoteChange={setNote}
           onConfirm={confirmCompletion}
           onClose={closeDialog}
@@ -219,6 +242,7 @@ function TodayView({
   onComplete: (occurrence: Occurrence) => void;
 }) {
   const dueCount = occurrences.filter((item) => item.status === "due").length;
+  const focus = occurrences.find((item) => item.status === "due") ?? occurrences.find((item) => item.status === "upcoming") ?? occurrences[0];
 
   return (
     <div className="page-content">
@@ -231,21 +255,21 @@ function TodayView({
         <div className="timezone"><Clock3 size={15} /> {circle.timezone}</div>
       </div>
 
-      <section className="focus-card">
+      {focus ? <section className="focus-card">
         <div className="focus-copy">
           <span className="section-kicker">Next up</span>
-          <p className="focus-time">12:30</p>
-          <span className="focus-meridiem">PM</span>
+          <p className="focus-time">{focus.time.replace(/\s[AP]M$/, "")}</p>
+          <span className="focus-meridiem">{focus.time.match(/[AP]M$/)?.[0]}</span>
         </div>
         <div className="focus-details">
-          <span className="status-pill status-pill--due">Due now</span>
-          <h2>Midday routine</h2>
-          <p>One scheduled action · record the outcome when complete.</p>
+          <span className={`status-pill status-pill--${focus.status}`}>{focus.status === "completed" ? "Recorded" : focus.status === "due" ? "Due now" : "Upcoming"}</span>
+          <h2>{focus.title}</h2>
+          <p>{focus.detail}</p>
         </div>
-        <button className="primary-button" onClick={() => onComplete(occurrences[1])} disabled={occurrences[1].status === "completed"}>
-          {occurrences[1].status === "completed" ? <><Check size={18} /> Recorded</> : <>Record outcome <ArrowRight size={18} /></>}
+        <button className="primary-button" onClick={() => onComplete(focus)} disabled={focus.status === "completed"}>
+          {focus.status === "completed" ? <><Check size={18} /> Recorded</> : <>Record outcome <ArrowRight size={18} /></>}
         </button>
-      </section>
+      </section> : null}
 
       <div className="content-grid">
         <section>
@@ -274,6 +298,7 @@ function TodayView({
                 <p>{event.detail}</p>
               </div>
             ))}
+            {!circle.timeline.length ? <p className="empty-copy">No outcomes have been recorded yet.</p> : null}
           </div>
           <button className="wide-link">Open full handoff <ArrowRight size={16} /></button>
         </aside>
@@ -302,7 +327,8 @@ function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () =>
   );
 }
 
-function HandoffView({ circle }: { circle: CareCircle }) {
+function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences: Occurrence[] }) {
+  const dueCount = occurrences.filter((item) => item.status === "due").length;
   return (
     <div className="page-content handoff-view">
       <div className="page-heading">
@@ -329,13 +355,14 @@ function HandoffView({ circle }: { circle: CareCircle }) {
               </div>
             </article>
           ))}
+          {!circle.timeline.length ? <p className="empty-copy">The handoff will appear here after the first recorded outcome.</p> : null}
         </section>
         <aside className="handoff-summary">
           <span className="section-kicker">Shift summary</span>
           <h2>Nothing urgent to carry forward.</h2>
-          <p>One correction is preserved in history. The midday routine still needs an outcome.</p>
-          <div className="summary-stat"><strong>1</strong><span>action due</span></div>
-          <div className="summary-stat"><strong>3</strong><span>caregivers synced</span></div>
+          <p>{dueCount ? "The midday routine still needs an outcome." : "Every scheduled outcome is recorded."}</p>
+          <div className="summary-stat"><strong>{dueCount}</strong><span>{dueCount === 1 ? "action due" : "actions due"}</span></div>
+          <div className="summary-stat"><strong>{circle.members.length}</strong><span>caregivers synced</span></div>
         </aside>
       </div>
     </div>
@@ -346,6 +373,7 @@ function CompletionDialog({
   state,
   occurrence,
   note,
+  errorMessage,
   onNoteChange,
   onConfirm,
   onClose,
@@ -353,11 +381,12 @@ function CompletionDialog({
   state: DemoState;
   occurrence: Occurrence;
   note: string;
+  errorMessage: string;
   onNoteChange: (value: string) => void;
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const isResult = state === "saved" || state === "race";
+  const isResult = state === "saved" || state === "race" || state === "error";
 
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -394,7 +423,7 @@ function CompletionDialog({
           <div className="result-state">
             <span className="result-icon result-icon--success"><CheckCircle2 size={32} /></span>
             <span className="section-kicker">Recorded</span>
-            <h2 id="dialog-title">Midday routine completed</h2>
+            <h2 id="dialog-title">{occurrence.title} completed</h2>
             <p>Everyone in Nora’s care circle now sees the same result.</p>
             <div className="proof-row"><ShieldCheck size={19} /><span><strong>Completion + audit event</strong><small>Committed together with one idempotency key</small></span></div>
           </div>
@@ -404,12 +433,17 @@ function CompletionDialog({
           <div className="result-state">
             <span className="result-icon result-icon--protected"><ShieldCheck size={34} /></span>
             <span className="section-kicker section-kicker--coral">Duplicate prevented</span>
-            <h2 id="dialog-title">Maya’s completion won</h2>
-            <p>You and Maya acted at nearly the same time. One completion was accepted; your screen received the winning state.</p>
-            <div className="race-proof">
-              <div><span className="race-dot race-dot--won" /><strong>Maya</strong><small>Accepted · 12:31:04.218</small></div>
-              <div><span className="race-dot race-dot--stopped" /><strong>You</strong><small>Matched existing result · 12:31:04.241</small></div>
-            </div>
+            <h2 id="dialog-title">{occurrence.completedBy} already recorded this</h2>
+            <p>Another completion reached Appwrite first. Your screen now shows the winning record instead of creating a duplicate.</p>
+          </div>
+        ) : null}
+
+        {state === "error" ? (
+          <div className="result-state">
+            <span className="result-icon result-icon--protected"><CircleAlert size={34} /></span>
+            <span className="section-kicker section-kicker--coral">Not recorded</span>
+            <h2 id="dialog-title">Please try again</h2>
+            <p>{errorMessage}</p>
           </div>
         ) : null}
 

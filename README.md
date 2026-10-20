@@ -19,9 +19,10 @@ The current foundation includes:
 - an interactive conflict demo showing which concurrent attempt won
 - Appwrite browser and server client boundaries
 - a provisioned TablesDB schema and atomic completion service
+- a live seeded dashboard and completion flow backed by TablesDB
 
-The interface currently uses synthetic display data while authentication and
-real-user onboarding are connected to the completed data layer.
+The connected demo uses synthetic server-only identities while authentication
+and real-user onboarding are added to the completed data layer.
 
 ## Run locally
 

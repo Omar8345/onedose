@@ -69,8 +69,9 @@ function valuesMatch(key, existing, expected) {
   return existing === expected;
 }
 
-function assertExpected(tableId, rowId, existing, expected) {
+function assertExpected(tableId, rowId, existing, expected, mutableKeys = []) {
   const mismatches = Object.entries(expected)
+    .filter(([key]) => !mutableKeys.includes(key))
     .filter(([key, value]) => !valuesMatch(key, existing[key], value))
     .map(([key, value]) => `${key}: expected ${JSON.stringify(value)}, found ${JSON.stringify(existing[key])}`);
 
@@ -81,10 +82,10 @@ function assertExpected(tableId, rowId, existing, expected) {
   }
 }
 
-async function ensureRow(tableId, rowId, data) {
+async function ensureRow(tableId, rowId, data, options = {}) {
   try {
     const existing = await tables.getRow({ databaseId, tableId, rowId });
-    assertExpected(tableId, rowId, existing, data);
+    assertExpected(tableId, rowId, existing, data, options.mutableKeys);
     console.log(`✓ ${tableId}/${rowId} already matches`);
     return existing;
   } catch (error) {
@@ -149,7 +150,7 @@ await ensureRow("occurrences", occurrence.id, {
   dueAt: occurrence.dueAt,
   status: "due",
   version: 0,
-});
+}, { mutableKeys: ["status", "version"] });
 
 console.log(`OneDose demo data is ready. Due occurrence: ${occurrence.id}`);
 console.log("These rows are synthetic and server-only until Appwrite Auth and Teams onboarding is connected.");
