@@ -1,5 +1,7 @@
+import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
+import { requireCurrentUser } from "@/lib/auth/session";
 import {
   completeOccurrence,
   CompletionForbiddenError,
@@ -13,14 +15,17 @@ const bodySchema = z.object({
 
 export async function POST(
   request: Request,
-  context: RouteContext<"/api/demo/occurrences/[occurrenceId]/complete">,
+  context: RouteContext<"/api/occurrences/[occurrenceId]/complete">,
 ) {
   try {
-    const { occurrenceId } = await context.params;
-    const body = bodySchema.parse(await request.json());
+    const [{ occurrenceId }, body, { user }] = await Promise.all([
+      context.params,
+      request.json().then((value) => bodySchema.parse(value)),
+      requireCurrentUser(),
+    ]);
     const result = await completeOccurrence({
       occurrenceId,
-      actorId: "demo_omar",
+      actorId: user.$id,
       idempotencyKey: body.idempotencyKey,
       outcome: "completed",
       note: body.note,
@@ -40,6 +45,9 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return Response.json({ message: "The completion request is invalid." }, { status: 400 });
     }
+    if (error instanceof AppwriteException && error.code === 401) {
+      return Response.json({ message: "Sign in to record this outcome." }, { status: 401 });
+    }
     if (error instanceof CompletionForbiddenError) {
       return Response.json({ message: error.message }, { status: 403 });
     }
@@ -47,7 +55,7 @@ export async function POST(
       return Response.json({ message: error.message }, { status: 409 });
     }
 
-    console.error("Unable to complete demo occurrence", error);
+    console.error("Unable to complete occurrence", error);
     return Response.json({ message: "The outcome could not be recorded. Please try again." }, { status: 500 });
   }
 }

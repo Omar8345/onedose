@@ -1,0 +1,101 @@
+"use client";
+
+import { ArrowLeft, ArrowRight, MailCheck, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+export function AuthScreen() {
+  const router = useRouter();
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function sendCode(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Please try again.");
+      setUserId(payload.userId);
+      setStep("code");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const secret = String(new FormData(event.currentTarget).get("secret") ?? "").trim();
+    try {
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, secret, name }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Please try again.");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Please try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-story">
+        <div className="logo logo--auth" aria-label="OneDose"><span className="logo-mark"><i /><i /></span><span>OneDose</span></div>
+        <div>
+          <span className="section-kicker">Shared care, one clear record</span>
+          <h1>Know what happened.<br />Prevent the duplicate.</h1>
+          <p>Coordinate scheduled care with the people you trust, even when two caregivers act at the same moment.</p>
+        </div>
+        <div className="auth-proof"><ShieldCheck size={22} /><span><strong>Database-enforced handoff</strong><small>One accepted completion. One readable history.</small></span></div>
+      </section>
+
+      <section className="auth-panel">
+        <div className="auth-card">
+          {step === "email" ? (
+            <>
+              <span className="eyebrow">Passwordless sign in</span>
+              <h2>Continue with email</h2>
+              <p>We’ll send you a six-digit code. New accounts are created automatically.</p>
+              <form onSubmit={sendCode}>
+                <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required minLength={2} /></label>
+                <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required /></label>
+                {error ? <p className="form-error" role="alert">{error}</p> : null}
+                <button className="primary-button full-button" disabled={busy}>{busy ? "Sending code…" : <>Email me a code <ArrowRight size={17} /></>}</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <span className="auth-mail-icon"><MailCheck size={24} /></span>
+              <span className="eyebrow">Check your inbox</span>
+              <h2>Enter your code</h2>
+              <p>We sent a six-digit sign-in code to <strong>{email}</strong>.</p>
+              <form onSubmit={verifyCode}>
+                <label><span>Verification code</span><input className="otp-input" name="secret" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={6} autoFocus /></label>
+                {error ? <p className="form-error" role="alert">{error}</p> : null}
+                <button className="primary-button full-button" disabled={busy}>{busy ? "Verifying…" : <>Verify and continue <ArrowRight size={17} /></>}</button>
+              </form>
+              <button className="auth-switch" onClick={() => { setStep("email"); setError(""); }}><ArrowLeft size={15} /> Use a different email</button>
+            </>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}

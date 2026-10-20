@@ -64,7 +64,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
     if (!selected) return;
     setDemoState("saving");
     try {
-      const response = await fetch(`/api/demo/occurrences/${selected.id}/complete`, {
+      const response = await fetch(`/api/occurrences/${selected.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idempotencyKey, note: note || undefined }),
