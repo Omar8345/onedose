@@ -67,6 +67,7 @@ export function AuthScreen() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Please try again.");
+      setBusy(false);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Please try again.");
