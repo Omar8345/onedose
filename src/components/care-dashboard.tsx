@@ -35,12 +35,11 @@ type CompletionResponse = {
   };
 };
 
-const caregiverNames: Record<string, string> = {
-  demo_omar: "You",
-  demo_maya: "Maya",
-};
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CG";
+}
 
-export function CareDashboard({ circle }: { circle: CareCircle }) {
+export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: { id: string; name: string } }) {
   const router = useRouter();
   const [view, setView] = useState<View>("today");
   const [demoState, setDemoState] = useState<DemoState>("idle");
@@ -74,7 +73,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
 
       const result = payload as CompletionResponse;
       const completedBy = result.occurrence.completedBy
-        ? caregiverNames[result.occurrence.completedBy] ?? "Another caregiver"
+        ? result.occurrence.completedBy === viewer.id ? "You" : "Another caregiver"
         : "Caregiver";
       const completedAt = result.occurrence.completedAt
         ? new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(result.occurrence.completedAt))
@@ -99,6 +98,11 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
     setErrorMessage("");
   };
 
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.refresh();
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -112,7 +116,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
         <div className="circle-switcher">
           <span className="eyebrow">Care circle</span>
           <button>
-            <span className="avatar avatar--large">N</span>
+            <span className="avatar avatar--large">{initials(circle.recipient).slice(0, 1)}</span>
             <span>
               <strong>{circle.recipient}</strong>
               <small>{circle.members.length} caregivers</small>
@@ -140,14 +144,14 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
           </div>
         </div>
 
-        <div className="profile-row">
-          <span className="avatar avatar--coral">OM</span>
+        <button className="profile-row" onClick={signOut} title="Sign out">
+          <span className="avatar avatar--coral">{initials(viewer.name)}</span>
           <span>
-            <strong>Omar</strong>
-            <small>Caregiver</small>
+            <strong>{viewer.name}</strong>
+            <small>Owner · Sign out</small>
           </span>
           <ChevronDown size={15} />
-        </div>
+        </button>
       </aside>
 
       <section className="workspace">
@@ -199,6 +203,7 @@ export function CareDashboard({ circle }: { circle: CareCircle }) {
           onNoteChange={setNote}
           onConfirm={confirmCompletion}
           onClose={closeDialog}
+          circleName={circle.recipient}
         />
       ) : null}
     </main>
@@ -377,6 +382,7 @@ function CompletionDialog({
   onNoteChange,
   onConfirm,
   onClose,
+  circleName,
 }: {
   state: DemoState;
   occurrence: Occurrence;
@@ -385,6 +391,7 @@ function CompletionDialog({
   onNoteChange: (value: string) => void;
   onConfirm: () => void;
   onClose: () => void;
+  circleName: string;
 }) {
   const isResult = state === "saved" || state === "race" || state === "error";
 
@@ -424,7 +431,7 @@ function CompletionDialog({
             <span className="result-icon result-icon--success"><CheckCircle2 size={32} /></span>
             <span className="section-kicker">Recorded</span>
             <h2 id="dialog-title">{occurrence.title} completed</h2>
-            <p>Everyone in Nora’s care circle now sees the same result.</p>
+            <p>Everyone in {circleName} now sees the same result.</p>
             <div className="proof-row"><ShieldCheck size={19} /><span><strong>Completion + audit event</strong><small>Committed together with one idempotency key</small></span></div>
           </div>
         ) : null}

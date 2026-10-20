@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
 import { AppwriteException, Permission, Role } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
@@ -13,6 +12,7 @@ import {
   type MemberRow,
   type OccurrenceRow,
 } from "@/lib/domain/schema";
+import { stableHash, stableRowId } from "@/lib/domain/ids";
 
 const TRANSACTION_TTL_SECONDS = 60;
 
@@ -28,14 +28,6 @@ export class CompletionForbiddenError extends Error {
     super("The caregiver is not allowed to update this care circle.");
     this.name = "CompletionForbiddenError";
   }
-}
-
-function stableHash(value: string) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function rowId(prefix: string, value: string) {
-  return `${prefix}_${stableHash(value).slice(0, 30)}`;
 }
 
 function fingerprint(input: CompletionInput) {
@@ -59,7 +51,7 @@ function isConflict(error: unknown) {
 export async function completeOccurrence(rawInput: unknown): Promise<CompletionResult> {
   const input = completionInputSchema.parse(rawInput);
   const { databaseId, tables } = getServerAppwrite();
-  const commandId = rowId("cmd", `${input.actorId}:${input.idempotencyKey}`);
+  const commandId = stableRowId("cmd", `${input.actorId}:${input.idempotencyKey}`);
   const requestFingerprint = fingerprint(input);
 
   try {
@@ -93,7 +85,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       rowId: input.occurrenceId,
       transactionId: transaction.$id,
     });
-    const memberId = rowId("mem", `${occurrence.circleId}:${input.actorId}`);
+    const memberId = stableRowId("mem", `${occurrence.circleId}:${input.actorId}`);
     const member = await tables.getRow<MemberRow>({
       databaseId,
       tableId: TABLES.members,
@@ -117,7 +109,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
 
     // Every contender writes the same immutable event row. Its unique row ID
     // makes Appwrite reject all but one concurrent completion transaction.
-    const eventId = rowId("evt", occurrence.$id);
+    const eventId = stableRowId("evt", occurrence.$id);
     const now = new Date().toISOString();
 
     // Touching membership makes a concurrent revocation conflict with this commit.

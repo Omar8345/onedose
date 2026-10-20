@@ -3,14 +3,14 @@ import { Suspense } from "react";
 
 import { CareDashboard } from "@/components/care-dashboard";
 import { AuthScreen } from "@/components/auth-screen";
-import { OnboardingPlaceholder } from "@/components/onboarding-placeholder";
+import { OnboardingScreen } from "@/components/onboarding-screen";
 import { demoCircle } from "@/lib/demo-data";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getDemoCircle } from "@/lib/data/get-demo-circle";
+import { getCareCircle } from "@/lib/data/get-care-circle";
 
 export default function Home() {
   return (
-    <Suspense fallback={<CareDashboard circle={demoCircle} />}>
+    <Suspense fallback={<CareDashboard circle={demoCircle} viewer={{ id: "demo_omar", name: "Omar" }} />}>
       <LiveDashboard />
     </Suspense>
   );
@@ -20,11 +20,8 @@ async function LiveDashboard() {
   await connection();
   const user = await getCurrentUser();
   if (!user) return <AuthScreen />;
-  if (!user.prefs.primaryTeamId) return <OnboardingPlaceholder name={user.name || "there"} />;
-
-  // The next milestone replaces this placeholder check with the user's
-  // TablesDB care circle and onboarding flow.
-  if (user.$id !== "demo_omar") return <OnboardingPlaceholder name={user.name || "there"} />;
-  const circle = await getDemoCircle();
-  return <CareDashboard circle={circle} />;
+  if (!user.prefs.circleId) return <OnboardingScreen name={user.name || "there"} />;
+  const viewer = { id: user.$id, name: user.name || "Caregiver" };
+  const circle = await getCareCircle(user.prefs.circleId, viewer);
+  return <CareDashboard circle={circle} viewer={viewer} />;
 }

@@ -17,6 +17,7 @@ const adminEnvSchema = publicEnvSchema.extend({
 
 export type OneDosePrefs = Models.Preferences & {
   primaryTeamId?: string;
+  circleId?: string;
 };
 
 function client(session?: string) {
