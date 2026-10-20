@@ -5,6 +5,7 @@ import { Account, AppwriteException, Client, Teams, type Models } from "node-app
 import { z } from "zod";
 
 const SESSION_COOKIE = "onedose_session";
+const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const publicEnvSchema = z.object({
   NEXT_PUBLIC_APPWRITE_ENDPOINT: z.url(),
@@ -77,7 +78,9 @@ export async function requireCurrentUser() {
 }
 
 export async function setSessionCookie(session: Models.Session) {
-  const expires = new Date(session.expire);
+  const appwriteExpiry = new Date(session.expire);
+  const cookieExpiry = new Date(Date.now() + SESSION_COOKIE_MAX_AGE_SECONDS * 1000);
+  const expires = appwriteExpiry < cookieExpiry ? appwriteExpiry : cookieExpiry;
   (await cookies()).set(SESSION_COOKIE, session.secret, {
     httpOnly: true,
     sameSite: "lax",
