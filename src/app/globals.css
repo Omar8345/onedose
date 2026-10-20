@@ -318,7 +318,15 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .onboarding-form h2 { font-size: 34px; }
   .field-grid { grid-template-columns: 1fr; gap: 0; }
   .auth-shell { display: block; background: var(--paper); }
-  .auth-story { min-height: auto; padding: 32px 22px 44px; }
+  .auth-story { min-height: auto; padding: 32px 22px 44px; background: var(--paper); color: var(--ink); }
+  .auth-story::after { border-color: rgba(23, 35, 31, .08); box-shadow: 0 0 0 80px rgba(23, 35, 31, .025), 0 0 0 160px rgba(23, 35, 31, .018); }
+  .auth-story .logo--auth { color: var(--ink); }
+  .auth-story .section-kicker { color: var(--sage); }
+  .auth-story h1 { color: var(--ink); }
+  .auth-story p { color: var(--muted); }
+  .auth-proof svg { color: var(--sage); }
+  .auth-proof strong { color: var(--ink); }
+  .auth-proof small { color: var(--muted); }
   .auth-story h1 { font-size: 48px; }
   .auth-story p { font-size: 15px; }
   .auth-proof { margin-top: 40px; }
