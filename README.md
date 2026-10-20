@@ -21,6 +21,7 @@ The current foundation includes:
 - an interactive conflict demo showing which concurrent attempt won
 - Appwrite browser and server client boundaries
 - passwordless Email OTP authentication and private Appwrite Teams
+- secure caregiver invitations with Appwrite Team acceptance
 - transactional onboarding for a user's first circle and daily action
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
@@ -75,10 +76,11 @@ Run the live concurrency proof after provisioning and seeding:
 npm run test:race
 ```
 
-The test creates a temporary due occurrence and sends 25 completion requests
-at the same time through the real completion service. It requires exactly one
-accepted request, one audit event, one command receipt, and a final version of
-one. The other 24 requests must return the recorded winner. Test rows are
+The test confirms two caregiver views see the same due occurrence, then sends
+25 completion requests at the same time through the real completion service.
+It requires exactly one accepted request, one audit event, one command receipt,
+and a final version of one. The other 24 requests must return the recorded
+winner, and both refreshed views must converge on that result. Test rows are
 removed when the run finishes; set `KEEP_RACE_DATA=1` to inspect them afterward.
 
 ## Product contract

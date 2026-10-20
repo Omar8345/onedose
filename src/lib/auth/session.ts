@@ -44,6 +44,10 @@ export function getPublicAccount() {
   return new Account(client());
 }
 
+export function getPublicTeams() {
+  return new Teams(client());
+}
+
 export function getSessionServices(secret: string) {
   const appwrite = client(secret);
   return {

@@ -22,12 +22,14 @@ The demonstration uses synthetic people and schedules.
 
 ## Primary flow
 
-1. A caregiver opens the shared Today view.
-2. They select a due action and review its instructions.
-3. They record it as completed, skipped, refused, or unavailable.
-4. Appwrite commits the occurrence state and audit event together.
-5. Every connected caregiver receives the resulting state.
-6. A later correction adds history instead of rewriting it.
+1. An owner invites a caregiver through their private Appwrite Team.
+2. The caregiver accepts the emailed link and confirms their identity with OTP.
+3. Both caregivers open the shared Today view.
+4. One selects a due action and reviews its instructions.
+5. They record it as completed, skipped, refused, or unavailable.
+6. Appwrite commits the occurrence state and audit event together.
+7. Every connected caregiver receives the resulting state.
+8. A later correction adds history instead of rewriting it.
 
 ## Safety invariants
 
@@ -93,6 +95,6 @@ returns the existing result without creating another completion.
 - Retry tests produce no duplicate audit events.
 - Permission tests prove care circles cannot read one another's rows.
 - Transaction failure leaves neither a partial completion nor a partial audit.
-- Two browser sessions visibly converge on the same state.
+- Two caregiver views visibly converge on the same state.
 - The complete demonstration can be understood in under three minutes.
 

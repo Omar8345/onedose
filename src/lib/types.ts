@@ -23,6 +23,7 @@ export type CareCircle = {
   recipient: string;
   timezone: string;
   dateLabel: string;
+  viewerRole: "owner" | "caregiver" | "viewer";
   members: { name: string; initials: string; color: string }[];
   occurrences: Occurrence[];
   timeline: TimelineEvent[];

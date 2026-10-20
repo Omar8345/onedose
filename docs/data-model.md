@@ -131,6 +131,8 @@ flow uses four staged writes.
 ## Permissions
 
 - Care-circle rows are readable by the circle's Appwrite Team.
+- Owners invite caregivers through Appwrite Team memberships; acceptance is
+  followed by Email OTP before OneDose activates the matching member row.
 - Browser clients do not receive direct create, update, or delete permission
   for occurrences, events, memberships, or command receipts.
 - A server route authenticates the user, derives `actorId` from the session,

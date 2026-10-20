@@ -6,8 +6,9 @@ import { Query, type Models } from "node-appwrite";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-const [{ completeOccurrence }, { getServerAppwrite }, { TABLES }] = await Promise.all([
+const [{ completeOccurrence }, { getCareCircle }, { getServerAppwrite }, { TABLES }] = await Promise.all([
   import("../src/lib/data/complete-occurrence"),
+  import("../src/lib/data/get-care-circle"),
   import("../src/lib/appwrite/server"),
   import("../src/lib/domain/schema"),
 ]);
@@ -68,7 +69,16 @@ try {
   });
   createdOccurrence = true;
 
-  console.log(`Launching ${REQUEST_COUNT} simultaneous completion requests...`);
+  const [omarBefore, mayaBefore] = await Promise.all([
+    getCareCircle(CIRCLE_ID, { id: ACTORS[0], name: "Omar" }),
+    getCareCircle(CIRCLE_ID, { id: ACTORS[1], name: "Maya" }),
+  ]);
+  const omarOccurrence = omarBefore.occurrences.find((item) => item.id === occurrenceId);
+  const mayaOccurrence = mayaBefore.occurrences.find((item) => item.id === occurrenceId);
+  assert.equal(omarOccurrence?.status, "due", "the owner must see the shared occurrence as due");
+  assert.equal(mayaOccurrence?.status, "due", "the caregiver must see the same occurrence as due");
+
+  console.log(`Two caregivers see ${occurrenceId}. Launching ${REQUEST_COUNT} simultaneous completion requests...`);
   const startedAt = performance.now();
   const results = await Promise.all(
     Array.from({ length: REQUEST_COUNT }, (_, index) =>
@@ -87,10 +97,12 @@ try {
   const accepted = results.filter((result) => result.kind === "accepted");
   const replayed = results.filter((result) => result.kind === "replayed");
   const conflicts = results.filter((result) => result.kind === "already_recorded");
-  const [occurrence, events, commands] = await Promise.all([
+  const [occurrence, events, commands, omarAfter, mayaAfter] = await Promise.all([
     tables.getRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }),
     rowsFor(TABLES.events),
     rowsFor(TABLES.commands),
+    getCareCircle(CIRCLE_ID, { id: ACTORS[0], name: "Omar" }),
+    getCareCircle(CIRCLE_ID, { id: ACTORS[1], name: "Maya" }),
   ]);
 
   assert.equal(accepted.length, 1, "exactly one request must be accepted");
@@ -101,16 +113,28 @@ try {
   assert.equal(events.rows.length, 1, "exactly one audit event must exist");
   assert.equal(commands.rows.length, 1, "exactly one command receipt must exist");
   assert.equal(events.rows[0].$id, occurrence.activeEventId, "the occurrence must point to its audit event");
+  assert.equal(
+    omarAfter.occurrences.find((item) => item.id === occurrenceId)?.status,
+    "completed",
+    "the owner's refreshed view must converge on the winner",
+  );
+  assert.equal(
+    mayaAfter.occurrences.find((item) => item.id === occurrenceId)?.status,
+    "completed",
+    "the caregiver's refreshed view must converge on the winner",
+  );
 
   console.log("\nOneDose concurrency proof passed");
   console.table({
     requests: REQUEST_COUNT,
+    caregiverViews: 2,
     accepted: accepted.length,
     conflicts: conflicts.length,
     auditEvents: events.rows.length,
     commandReceipts: commands.rows.length,
     finalVersion: occurrence.version,
     winner: occurrence.completedBy,
+    converged: true,
     elapsedMs,
   });
 } finally {

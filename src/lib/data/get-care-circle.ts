@@ -9,7 +9,10 @@ import type { CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 type CircleRow = Models.Row & { name: string; timezone: string };
 type RecipientRow = Models.Row & { displayName: string };
 type ScheduleRow = Models.Row & { title: string; instruction: string | null; timezone: string };
-type MemberRow = Models.Row & { userId: string };
+type MemberRow = Models.Row & {
+  userId: string;
+  role: "owner" | "caregiver" | "viewer";
+};
 type EventRow = Models.Row & {
   occurrenceId: string;
   actorId: string;
@@ -81,6 +84,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     recipient: circle.name || `${recipient?.displayName ?? "Care"} circle`,
     timezone: circle.timezone,
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
+    viewerRole: memberships.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver",
     members,
     occurrences: occurrenceViews,
     timeline,

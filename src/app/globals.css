@@ -115,8 +115,8 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .primary-button:disabled { background: #d8ded9; color: #68746e; box-shadow: none; cursor: default; transform: none; }
 .focus-card .primary-button { background: #fff8ef; color: var(--navy); }
 .focus-card .primary-button:hover { background: white; }
-.secondary-button { min-height: 40px; border-radius: 10px; padding: 0 14px; border: 1px solid #ccd1cb; background: var(--surface); }
-.secondary-button:hover { border-color: var(--sage); }
+.secondary-button { min-height: 40px; border-radius: 10px; padding: 0 14px; border: 1px solid #ccd1cb; background: var(--surface); transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+.secondary-button:hover { border-color: var(--sage); background: var(--sage-soft); color: var(--sage); }
 .text-button { background: transparent; color: var(--sage); padding: 8px; }
 .row-action { background: transparent; color: var(--coral); padding: 8px 0; }
 .wide-link { background: transparent; color: var(--sage); border-top: 1px solid var(--line); width: 100%; justify-content: space-between; padding: 17px 0 0; margin-top: 8px; }
@@ -187,6 +187,14 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .detail-strip small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .note-field span { display: block; font-weight: 600; margin-bottom: 8px; }
 .note-field textarea { width: 100%; min-height: 100px; resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: white; color: var(--ink); }
+.invite-field { display: block; margin-top: 24px; }
+.invite-field span { display: block; font-weight: 650; font-size: 13px; margin-bottom: 8px; }
+.invite-field input { width: 100%; height: 48px; border: 1px solid var(--line); border-radius: 11px; padding: 0 13px; background: white; color: var(--ink); caret-color: var(--sage); transition: border-color .24s ease, box-shadow .24s ease, background-color .24s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
+.invite-field input:focus { outline: 0; border-color: var(--sage); box-shadow: 0 0 0 4px rgba(93, 198, 154,.2), 0 6px 16px rgba(57, 105, 87, .08); background: #fffefa; transform: translateY(-1px); }
+.invite-dialog .primary-button:hover { transform: none; box-shadow: 0 8px 20px rgba(119,50,37,.18); }
+.invite-dialog .invite-field { margin-bottom: 0; }
+.invite-dialog .form-error { margin-top: 0; }
+.invite-dialog .dialog-actions { margin-top: 18px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .result-state { text-align: center; padding: 16px 0 8px; }
 .result-icon { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 20px; }
@@ -283,6 +291,15 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .loading-shell { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 18px; background: var(--paper); }
 .loading-shell .spinner { margin: 18px 0 0; }
 .loading-shell p { margin: 0; color: var(--muted); }
+.invite-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--navy); }
+.invite-card { width: min(560px, 100%); text-align: center; background: var(--surface); border-radius: 24px; padding: clamp(32px, 6vw, 54px); box-shadow: 0 30px 90px rgba(0,0,0,.28); }
+.logo--invite { justify-content: center; color: var(--navy); margin-bottom: 36px; }
+.invite-card h1 { font-size: clamp(34px, 6vw, 48px); line-height: 1.05; letter-spacing: -.055em; margin: 12px 0; }
+.invite-card > p { color: var(--muted); line-height: 1.6; }
+.invite-icon { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 50%; margin: 0 auto 22px; }
+.invite-icon--success { color: var(--sage); background: var(--sage-soft); }
+.invite-icon--error { color: #a64535; background: var(--coral-soft); }
+.invite-card .setup-proof { text-align: left; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fade-in { from { opacity: 0; } }

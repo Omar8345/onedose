@@ -2,6 +2,7 @@ import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
 import { getAdminAccount, getSessionServices, setSessionCookie } from "@/lib/auth/session";
+import { activatePendingTeam, getPendingTeam } from "@/lib/auth/invitation";
 import { ensurePrimaryTeam } from "@/lib/auth/team";
 
 const verifySchema = z.object({
@@ -16,8 +17,10 @@ export async function POST(request: Request) {
     const account = getSessionServices(session.secret).account;
     const user = await account.get();
     await setSessionCookie(session);
-    if (!user.name) return Response.json({ ok: true, needsProfile: true });
-    await ensurePrimaryTeam(session.secret, user.name);
+    const pendingTeam = await getPendingTeam();
+    if (!user.name || pendingTeam) return Response.json({ ok: true, needsProfile: true });
+    const joinedInvitation = await activatePendingTeam(session.secret);
+    if (!joinedInvitation) await ensurePrimaryTeam(session.secret, user.name);
     return Response.json({ ok: true, needsProfile: false });
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ message: "Enter the six-digit code." }, { status: 400 });

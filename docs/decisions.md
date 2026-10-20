@@ -40,3 +40,13 @@ The same transaction touches active membership, creates an append-only audit
 event, and writes a deterministic idempotency receipt. A partial history or a
 completion without its audit evidence cannot be committed.
 
+## 005 — use Appwrite Teams as the invitation boundary
+
+**Status:** accepted
+
+Circle owners invite caregivers through an authenticated Appwrite Team request.
+Recipients must accept the emailed membership secret and then confirm their
+identity through OneDose's Email OTP flow. Before linking a user to a circle,
+the server verifies that the signed-in account has a confirmed membership in
+that Team. The browser never supplies a trusted circle or membership role.
+

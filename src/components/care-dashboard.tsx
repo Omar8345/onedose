@@ -13,10 +13,11 @@ import {
   MessageSquareText,
   RefreshCw,
   ShieldCheck,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { CareCircle, Occurrence } from "@/lib/types";
 
 type View = "today" | "handoff";
@@ -36,7 +37,7 @@ function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CG";
 }
 
-export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: { id: string; name: string } }) {
+export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: { id: string; name: string; email: string } }) {
   const router = useRouter();
   const [view, setView] = useState<View>("today");
   const [demoState, setDemoState] = useState<DemoState>("idle");
@@ -45,6 +46,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [note, setNote] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [isRefreshing, startRefresh] = useTransition();
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
@@ -129,6 +131,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           <NavButton active={view === "handoff"} onClick={() => setView("handoff")} icon={<MessageSquareText size={18} />}>
             Handoff
           </NavButton>
+          {circle.viewerRole === "owner" ? (
+            <NavButton onClick={() => setInviteOpen(true)} icon={<UserPlus size={18} />}>
+              Invite caregiver
+            </NavButton>
+          ) : null}
         </nav>
 
         <div className="sidebar-proof">
@@ -143,7 +150,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           <span className="avatar avatar--coral">{initials(viewer.name)}</span>
           <span>
             <strong>{viewer.name}</strong>
-            <small>Owner</small>
+            <small>{circle.viewerRole === "owner" ? "Owner" : "Caregiver"}</small>
           </span>
           <button className="sidebar-signout" onClick={signOut} title="Sign out" aria-label="Sign out">
             <LogOut size={15} />
@@ -188,6 +195,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         <button className={view === "handoff" ? "is-active" : ""} onClick={() => setView("handoff")}>
           <MessageSquareText size={19} /><span>Handoff</span>
         </button>
+        {circle.viewerRole === "owner" ? (
+          <button onClick={() => setInviteOpen(true)}>
+            <UserPlus size={19} /><span>Invite</span>
+          </button>
+        ) : null}
       </nav>
 
       {demoState !== "idle" && selected ? (
@@ -202,7 +214,95 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           circleName={circle.recipient}
         />
       ) : null}
+
+      {inviteOpen ? <InviteDialog onClose={() => setInviteOpen(false)} viewerEmail={viewer.email} /> : null}
     </main>
+  );
+}
+
+function InviteDialog({ onClose, viewerEmail }: { onClose: () => void; viewerEmail: string }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"form" | "sending" | "sent" | "error">("form");
+  const [message, setMessage] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  async function sendInvitation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (email.trim().toLowerCase() === viewerEmail.trim().toLowerCase()) {
+      setMessage("You cannot invite yourself to this care circle.");
+      setStatus("error");
+      return;
+    }
+    setStatus("sending");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The invitation could not be sent.");
+      setStatus("sent");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The invitation could not be sent.");
+      setStatus("error");
+    }
+  }
+
+  function close() {
+    setClosing(true);
+  }
+
+  return (
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onClose(); }}>
+      <section className={`dialog invite-dialog ${closing ? "dialog--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="invite-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close"><X size={19} /></button>
+
+        {status === "sent" ? (
+          <div className="result-state">
+            <span className="result-icon result-icon--success"><CheckCircle2 size={32} /></span>
+            <span className="section-kicker">Invitation sent</span>
+            <h2 id="invite-title">Check {email}</h2>
+            <p>We sent an invitation link to their email. Once they accept it and sign in, they’ll have access to this shared care circle.</p>
+            <button className="primary-button full-button" onClick={close}>Done</button>
+          </div>
+        ) : (
+          <form onSubmit={sendInvitation}>
+            <span className="section-kicker">Share this circle</span>
+            <h2 id="invite-title">Invite a caregiver</h2>
+            <p className="dialog-lead">They’ll get an email with a secure invitation to join this care circle.</p>
+            <label className="invite-field">
+              <span>Email address</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="caregiver@example.com"
+                autoComplete="email"
+                required
+              />
+            </label>
+            {status === "error" ? <p className="form-error">{message}</p> : null}
+            <div className="dialog-actions">
+              <button className="secondary-button" type="button" onClick={close}>Cancel</button>
+              <button className="primary-button" disabled={status === "sending" || !email.trim()}>
+                <UserPlus size={18} /> {status === "sending" ? "Sending…" : "Send invitation"}
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -437,7 +537,7 @@ function CompletionDialog({
             <span className="result-icon result-icon--protected"><ShieldCheck size={34} /></span>
             <span className="section-kicker section-kicker--coral">Duplicate prevented</span>
             <h2 id="dialog-title">{occurrence.completedBy} already recorded this</h2>
-            <p>Another completion reached Appwrite first. Your screen now shows the winning record instead of creating a duplicate.</p>
+            <p>Another caregiver confirmed this update first. Your screen now shows the shared record instead of creating a duplicate.</p>
           </div>
         ) : null}
 
