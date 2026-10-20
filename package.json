@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:provision": "node scripts/provision.mjs",
-    "db:seed": "node scripts/seed.mjs"
+    "db:seed": "node scripts/seed.mjs",
+    "test:race": "node --conditions=react-server --import tsx scripts/race-test.mts"
   },
   "dependencies": {
     "appwrite": "^29.1.0",
@@ -26,7 +27,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "server-only": "^0.0.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

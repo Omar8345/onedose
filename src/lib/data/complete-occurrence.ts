@@ -14,7 +14,7 @@ import {
   type OccurrenceRow,
 } from "@/lib/domain/schema";
 
-const TRANSACTION_TTL_SECONDS = 30;
+const TRANSACTION_TTL_SECONDS = 60;
 
 export class CompletionInputConflictError extends Error {
   constructor() {
@@ -115,7 +115,9 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       return { kind: "already_recorded", occurrence };
     }
 
-    const eventId = rowId("evt", commandId);
+    // Every contender writes the same immutable event row. Its unique row ID
+    // makes Appwrite reject all but one concurrent completion transaction.
+    const eventId = rowId("evt", occurrence.$id);
     const now = new Date().toISOString();
 
     // Touching membership makes a concurrent revocation conflict with this commit.

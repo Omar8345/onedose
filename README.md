@@ -56,6 +56,18 @@ caregivers, a daily midday schedule, and one due occurrence for the current
 Dubai date. The rows use deterministic IDs and remain server-only until the
 Appwrite Auth and Teams onboarding flow is connected.
 
+Run the live concurrency proof after provisioning and seeding:
+
+```bash
+npm run test:race
+```
+
+The test creates a temporary due occurrence and sends 25 completion requests
+at the same time through the real completion service. It requires exactly one
+accepted request, one audit event, one command receipt, and a final version of
+one. The other 24 requests must return the recorded winner. Test rows are
+removed when the run finishes; set `KEEP_RACE_DATA=1` to inspect them afterward.
+
 ## Product contract
 
 The safety invariants and edge cases are documented in

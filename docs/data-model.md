@@ -118,9 +118,12 @@ Indexes: key `occurrenceId`; key `actorId`.
 3. Read the occurrence and active membership inside the transaction.
 4. Touch membership so a simultaneous revocation conflicts with the write.
 5. Update the contested occurrence row.
-6. Create an immutable audit event and private command receipt.
-7. Commit all operations together.
-8. On a `409` conflict, fetch the occurrence and return the winning state.
+6. Create an immutable audit event whose deterministic ID is derived from the
+   occurrence. Concurrent contenders therefore claim the same unique row, so
+   Appwrite can commit only one of their transactions.
+7. Create the winning request's private command receipt.
+8. Commit all operations together.
+9. On a `409` conflict, fetch the occurrence and return the winning state.
 
 The free TablesDB tier supports up to 100 operations per transaction. This
 flow uses four staged writes.
