@@ -4,9 +4,9 @@ import { ArrowLeft, ArrowRight, MailCheck, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function AuthScreen() {
+export function AuthScreen({ initialStep = "email" }: { initialStep?: "email" | "profile" }) {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "code" | "profile">("email");
+  const [step, setStep] = useState<"email" | "code" | "profile">(initialStep);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [userId, setUserId] = useState("");
