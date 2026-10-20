@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   title: "OneDose — shared care, one clear record",
   description:
     "A shared care handoff that prevents duplicate completion records.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

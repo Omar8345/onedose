@@ -59,10 +59,11 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 
 .circle-switcher { border-top: 1px solid rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.12); padding: 20px 8px; margin-bottom: 18px; }
 .circle-switcher .eyebrow { color: #a9b5b2; display: block; margin-bottom: 10px; }
-.circle-switcher-row, .profile-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; }
-.profile-row { cursor: pointer; }
+.circle-switcher-row, .profile-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; cursor: default; }
 .circle-switcher strong, .profile-row strong { display: block; font-size: 14px; }
 .circle-switcher small, .profile-row small { display: block; color: #aeb9b5; margin-top: 2px; }
+.sidebar-signout { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(249, 144, 125, .65); border-radius: 9px; background: rgba(233, 108, 87, .18); color: #ffb0a0; cursor: pointer; transition: background-color .2s ease, border-color .2s ease; }
+.sidebar-signout:hover { border-color: #ff9b89; background: rgba(233, 108, 87, .35); }
 
 .avatar { width: 31px; height: 31px; border-radius: 50%; display: inline-grid; place-items: center; font: 600 10px var(--font-mono), monospace; color: var(--navy); border: 2px solid var(--surface); }
 .avatar--large { width: 39px; height: 39px; background: #e9d8b3; font-size: 14px; border-color: rgba(255,255,255,.2); }
@@ -294,7 +295,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .onboarding-intro { min-height: 380px; }
   .app-shell { grid-template-columns: 84px minmax(0, 1fr); }
   .sidebar { padding-inline: 14px; }
-  .sidebar .logo > span:last-child, .circle-switcher .eyebrow, .circle-switcher-row span:not(.avatar), .nav-button span, .sidebar-proof, .profile-row span:not(.avatar), .profile-row svg { display: none; }
+  .sidebar .logo > span:last-child, .circle-switcher .eyebrow, .circle-switcher-row span:not(.avatar), .nav-button span, .sidebar-proof, .profile-row span:not(.avatar) { display: none; }
   .brand-row { justify-content: center; padding-inline: 0; }
   .circle-switcher { display: flex; justify-content: center; padding-inline: 0; }
   .circle-switcher-row { display: block; width: auto; }

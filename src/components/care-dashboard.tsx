@@ -139,14 +139,16 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           </div>
         </div>
 
-        <button className="profile-row" onClick={signOut} title="Sign out">
+        <div className="profile-row">
           <span className="avatar avatar--coral">{initials(viewer.name)}</span>
           <span>
             <strong>{viewer.name}</strong>
-            <small>Owner · Sign out</small>
+            <small>Owner</small>
           </span>
-          <LogOut size={15} />
-        </button>
+          <button className="sidebar-signout" onClick={signOut} title="Sign out" aria-label="Sign out">
+            <LogOut size={15} />
+          </button>
+        </div>
       </aside>
 
       <section className="workspace">
