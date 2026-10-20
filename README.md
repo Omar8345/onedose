@@ -9,18 +9,19 @@ attempt remains explainable.
 
 Built for the 2026 Appwrite Databases Hackathon with Appwrite TablesDB.
 
-## Current prototype
+## Current foundation
 
-The uncommitted first prototype includes:
+The current foundation includes:
 
 - a responsive Today view for shared scheduled actions
 - a handoff timeline that preserves corrections
 - a guided outcome-recording flow
 - an interactive conflict demo showing which concurrent attempt won
 - Appwrite browser and server client boundaries
+- a provisioned TablesDB schema and atomic completion service
 
-The interface currently uses synthetic data. Live TablesDB mutations will be
-enabled after the schema and atomic completion path are implemented.
+The interface currently uses synthetic display data while authentication and
+real-user onboarding are connected to the completed data layer.
 
 ## Run locally
 
@@ -43,6 +44,17 @@ npm run db:provision
 
 The command is idempotent: it creates missing tables and verifies tables that
 already exist. It stops instead of silently changing an incomplete schema.
+
+Seed a synthetic care circle after provisioning the schema:
+
+```bash
+npm run db:seed
+```
+
+The seed command is also idempotent. It creates Nora's care circle, two demo
+caregivers, a daily midday schedule, and one due occurrence for the current
+Dubai date. The rows use deterministic IDs and remain server-only until the
+Appwrite Auth and Teams onboarding flow is connected.
 
 ## Product contract
 
