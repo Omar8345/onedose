@@ -10,7 +10,8 @@ export async function POST(request: Request) {
   try {
     const { name } = profileSchema.parse(await request.json());
     const { secret, account } = await requireCurrentUser();
-    await account.updateName({ name });
+    const updatedUser = await account.updateName({ name });
+    if (updatedUser.name !== name) throw new Error("Appwrite did not persist the profile name.");
     await ensurePrimaryTeam(secret, name);
     return Response.json({ ok: true });
   } catch (error) {
