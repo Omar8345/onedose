@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, LogOut, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, Check, LogOut, Search, ShieldCheck, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function currentTime() {
   const now = new Date();
@@ -13,7 +13,27 @@ export function OnboardingScreen({ name }: { name: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [timezoneDialogOpen, setTimezoneDialogOpen] = useState(false);
+  const [timezoneSearch, setTimezoneSearch] = useState("");
   const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
+  const timezones = useMemo(() => {
+    const supported = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+    return [...new Set([timezone, "UTC", ...supported])].sort();
+  }, [timezone]);
+  const [selectedTimezone, setSelectedTimezone] = useState(timezone);
+  const filteredTimezones = useMemo(() => {
+    const query = timezoneSearch.trim().toLowerCase();
+    return query ? timezones.filter((zone) => zone.toLowerCase().includes(query)) : timezones;
+  }, [timezones, timezoneSearch]);
+
+  useEffect(() => {
+    if (!timezoneDialogOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setTimezoneDialogOpen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [timezoneDialogOpen]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,7 +87,13 @@ export function OnboardingScreen({ name }: { name: string }) {
           <label><span>Action name</span><input name="routineTitle" placeholder="e.g. Midday routine" required minLength={2} /></label>
           <div className="field-grid">
             <label><span>Time</span><input name="localTime" type="time" defaultValue={currentTime()} required /></label>
-            <label><span>Time zone</span><input name="timezone" defaultValue={timezone} required /></label>
+            <label>
+              <span>Time zone</span>
+              <input type="hidden" name="timezone" value={selectedTimezone} />
+              <button className="timezone-trigger" type="button" onClick={() => { setTimezoneSearch(""); setTimezoneDialogOpen(true); }}>
+                <span>{selectedTimezone}</span><Search size={17} aria-hidden="true" />
+              </button>
+            </label>
           </div>
           <label><span>Instructions <small>optional</small></span><textarea name="instruction" placeholder="What should the caregiver know?" maxLength={500} /></label>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -76,6 +102,20 @@ export function OnboardingScreen({ name }: { name: string }) {
         </form>
         <div className="onboarding-team-note"><Users size={18} /><span><strong>You start as the owner</strong><small>Your membership and first schedule are created atomically.</small></span></div>
       </section>
+      {timezoneDialogOpen ? (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={() => setTimezoneDialogOpen(false)}>
+        <section className="dialog timezone-dialog" role="dialog" aria-modal="true" aria-labelledby="timezone-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+          <button className="dialog-close" type="button" onClick={() => setTimezoneDialogOpen(false)} aria-label="Close"><X size={19} /></button>
+          <span className="eyebrow">Schedule location</span>
+          <h2 id="timezone-dialog-title">Choose a time zone</h2>
+          <label className="timezone-search"><span className="sr-only">Search time zones</span><Search size={17} aria-hidden="true" /><input value={timezoneSearch} onChange={(event) => setTimezoneSearch(event.target.value)} placeholder="Search cities or regions" autoFocus /></label>
+          <div className="timezone-options" role="listbox" aria-label="Time zones">
+            {filteredTimezones.map((zone) => <button className="timezone-option" type="button" role="option" aria-selected={zone === selectedTimezone} key={zone} onClick={() => { setSelectedTimezone(zone); setTimezoneDialogOpen(false); }}><span>{zone}{zone === timezone ? " (Detected)" : ""}</span>{zone === selectedTimezone ? <Check size={17} aria-hidden="true" /> : null}</button>)}
+            {!filteredTimezones.length ? <p className="timezone-empty">No matching time zones.</p> : null}
+          </div>
+        </section>
+        </div>
+      ) : null}
     </main>
   );
 }

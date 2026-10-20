@@ -253,10 +253,21 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .onboarding-form label { display: block; margin-bottom: 17px; }
 .onboarding-form label > span { display: block; font-size: 13px; font-weight: 650; margin-bottom: 7px; }
 .onboarding-form label small { color: var(--muted); font-weight: 500; }
-.onboarding-form input, .onboarding-form textarea { width: 100%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 11px; padding: 0 13px; }
-.onboarding-form input { height: 48px; }
+.onboarding-form input, .onboarding-form select, .onboarding-form textarea { width: 100%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 11px; padding: 0 13px; }
+.onboarding-form input, .onboarding-form select { height: 48px; }
 .onboarding-form textarea { min-height: 88px; padding-block: 12px; resize: vertical; }
-.onboarding-form input:focus, .onboarding-form textarea:focus { outline: 3px solid rgba(93, 198, 154, .3); border-color: var(--sage); }
+.onboarding-form input:focus, .onboarding-form select:focus, .onboarding-form textarea:focus { outline: 3px solid rgba(93, 198, 154, .3); border-color: var(--sage); }
+.timezone-trigger { width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 11px; padding: 0 13px; background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
+.timezone-trigger:focus { outline: 3px solid rgba(93, 198, 154, .3); border-color: var(--sage); }
+.timezone-dialog { padding-bottom: 24px; }
+.timezone-dialog h2 { margin-bottom: 20px; }
+.timezone-search { width: 100%; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 11px; padding: 0 13px; color: var(--muted); }
+.timezone-search input { width: 100%; min-width: 0; flex: 1; height: 46px; border: 0; outline: 0; padding: 0; background: transparent; color: var(--ink); }
+.timezone-options { display: grid; max-height: 340px; overflow-y: auto; margin-top: 12px; }
+.timezone-option { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 9px; padding: 11px 12px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
+.timezone-option:hover, .timezone-option[aria-selected="true"] { background: var(--sage-soft); color: var(--sage); }
+.timezone-empty { color: var(--muted); padding: 12px; text-align: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .form-section-label { display: block; margin: 11px 0 14px; padding-top: 22px; border-top: 1px solid var(--line); }
 .onboarding-signout { width: 100%; display: inline-flex; justify-content: center; align-items: center; gap: 7px; border: 0; background: transparent; color: var(--muted); padding: 16px; cursor: pointer; }
