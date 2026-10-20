@@ -82,7 +82,7 @@ export function AuthScreen() {
         <div>
           <span className="section-kicker">Shared care, one clear record</span>
           <h1>Know what happened.<br />Prevent the duplicate.</h1>
-          <p>Coordinate scheduled care with the people you trust, even when two caregivers act at the same moment.</p>
+          <p>A shared record for scheduled care, so everyone knows what happened—even when two caregivers act at the same moment.</p>
         </div>
         <div className="auth-proof"><ShieldCheck size={22} /><span><strong>Database-enforced handoff</strong><small>One accepted completion. One readable history.</small></span></div>
       </section>
