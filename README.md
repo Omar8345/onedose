@@ -9,6 +9,8 @@ attempt remains explainable.
 
 Built for the 2026 Appwrite Databases Hackathon with Appwrite TablesDB.
 
+**Live app:** [onedose.appwrite.network](https://onedose.appwrite.network)
+
 ## Current foundation
 
 The current foundation includes:
@@ -25,6 +27,12 @@ The current foundation includes:
 
 The seed remains available for repeatable testing, while real users can sign in,
 create their own private care circle, and record a shared outcome.
+
+## Live deployment
+
+OneDose is deployed with server-side rendering on Appwrite Sites. The live app
+uses Appwrite Email OTP authentication, private Teams for care-circle access,
+and TablesDB for schedules, completion attempts, and the audit trail.
 
 ## Run locally
 
