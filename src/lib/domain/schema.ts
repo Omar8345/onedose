@@ -9,6 +9,7 @@ export const TABLES = {
   occurrences: "occurrences",
   events: "audit_events",
   commands: "command_receipts",
+  notifications: "notification_deliveries",
 } as const;
 
 export const completionInputSchema = z.object({

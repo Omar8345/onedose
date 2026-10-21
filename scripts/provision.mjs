@@ -158,6 +158,26 @@ const schema = [
     ],
     indexes: [index("by_occurrence", "key", ["occurrenceId"]), index("by_actor", "key", ["actorId"])],
   },
+  {
+    id: "notification_deliveries",
+    name: "Notification deliveries",
+    columns: [
+      varchar("circleId", 36),
+      varchar("occurrenceId", 36),
+      enumeration("kind", ["due", "overdue"]),
+      enumeration("status", ["claimed", "sent", "failed", "dry_run"]),
+      integer("recipientCount"),
+      datetime("claimedAt"),
+      datetime("sentAt", false),
+      varchar("lastError", 500, false),
+      varchar("messageId", 36),
+    ],
+    indexes: [
+      index("uniq_occurrence_kind", "unique", ["occurrenceId", "kind"]),
+      index("by_circle_claimed", "key", ["circleId", "claimedAt"]),
+      index("by_status_claimed", "key", ["status", "claimedAt"]),
+    ],
+  },
 ];
 
 function isMissing(error) {

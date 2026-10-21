@@ -23,6 +23,8 @@ The current foundation includes:
 - passwordless Email OTP authentication and private Appwrite Teams
 - secure caregiver invitations with Appwrite Team acceptance
 - transactional onboarding for a user's first circle and daily action
+- owner-managed daily actions with pause and resume controls
+- an hourly Appwrite Function for daily generation, due reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
 
@@ -76,7 +78,22 @@ Run the live concurrency proof after provisioning and seeding:
 npm run test:race
 ```
 
-The test confirms two caregiver views see the same due occurrence, then sends
+Verify reminder idempotency after provisioning the notification table:
+
+```bash
+npm run test:reminders
+```
+
+The reminder proof creates one due item and one overdue item, runs competing
+sweeps, and verifies that each notification level receives exactly one delivery
+record. It runs in dry-run mode and removes its synthetic rows afterward.
+
+The production worker lives in [`functions/reminders`](functions/reminders).
+Deploy that folder as an Appwrite Function with a 60-minute interval, grant
+`rows.read`, `rows.write`, and `messages.write`, and configure an Appwrite email
+provider. Full settings are in the function's README.
+
+The race test confirms two caregiver views see the same due occurrence, then sends
 25 completion requests at the same time through the real completion service.
 It requires exactly one accepted request, one audit event, one command receipt,
 and a final version of one. The other 24 requests must return the recorded

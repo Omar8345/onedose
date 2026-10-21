@@ -111,6 +111,38 @@ Internal idempotency records. Row ID is a deterministic hash of
 
 Indexes: key `occurrenceId`; key `actorId`.
 
+### `notification_deliveries`
+
+Server-only delivery ledger for reminders and overdue escalations. The row ID
+and unique index are derived from `occurrenceId:kind`, so repeated or concurrent
+function executions cannot enqueue the same notification twice.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `circleId` | string(36) | Owning circle |
+| `occurrenceId` | string(36) | Due occurrence |
+| `kind` | enum | `due` or `overdue` |
+| `status` | enum | `claimed`, `sent`, `failed`, or `dry_run` |
+| `recipientCount` | integer | Active caregivers targeted |
+| `claimedAt` | datetime | Claim time for retry control |
+| `sentAt` | datetime, nullable | Message enqueue time |
+| `lastError` | string(500), nullable | Retry-safe failure detail |
+| `messageId` | string(36) | Deterministic Appwrite Messaging ID |
+
+Indexes: unique composite `occurrenceId,kind`; key `circleId,claimedAt`; key
+`status,claimedAt`.
+
+## Reminder sweep
+
+1. The hourly function materializes missing daily occurrences in each circle's
+   timezone.
+2. It selects active, due occurrences and classifies them as due or overdue.
+3. A deterministic delivery row claims that occurrence and reminder level.
+4. The message targets every active caregiver account in the circle.
+5. A deterministic Appwrite Messaging ID protects a retry after a partial
+   failure.
+6. Failed claims can be retried after 15 minutes; completed claims are skipped.
+
 ## Atomic completion
 
 1. Return the existing receipt when an idempotency key has already committed.

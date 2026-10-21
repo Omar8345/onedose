@@ -50,3 +50,12 @@ identity through OneDose's Email OTP flow. Before linking a user to a circle,
 the server verifies that the signed-in account has a confirmed membership in
 that Team. The browser never supplies a trusted circle or membership role.
 
+## 006 — schedule reminders and deduplicate delivery in TablesDB
+
+**Status:** accepted
+
+An hourly Appwrite Function creates missing daily occurrences and evaluates due
+items. It sends a first reminder when an action is due and a second escalation
+after 60 minutes. Each `occurrenceId:kind` pair claims one server-only delivery
+row and one deterministic Messaging ID, so retries do not spam caregivers.
+
