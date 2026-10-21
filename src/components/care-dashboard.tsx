@@ -3,6 +3,7 @@
 import {
   Activity,
   ArrowRight,
+  CalendarClock,
   Check,
   CheckCircle2,
   CircleAlert,
@@ -11,6 +12,8 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Pencil,
+  Plus,
   RefreshCw,
   ShieldCheck,
   UserPlus,
@@ -18,9 +21,9 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import type { CareCircle, Occurrence } from "@/lib/types";
+import type { CareCircle, CareSchedule, Occurrence } from "@/lib/types";
 
-type View = "today" | "handoff";
+type View = "today" | "handoff" | "schedules";
 type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
 
 type CompletionResponse = {
@@ -47,6 +50,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [scheduleEditor, setScheduleEditor] = useState<CareSchedule | "new" | null>(null);
   const [isRefreshing, startRefresh] = useTransition();
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
@@ -55,6 +59,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
     setIdempotencyKey(crypto.randomUUID());
+    setNote("");
     setErrorMessage("");
     setDemoState("confirm");
   };
@@ -132,6 +137,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             Handoff
           </NavButton>
           {circle.viewerRole === "owner" ? (
+            <NavButton active={view === "schedules"} onClick={() => setView("schedules")} icon={<CalendarClock size={18} />}>
+              Daily actions
+            </NavButton>
+          ) : null}
+          {circle.viewerRole === "owner" ? (
             <NavButton onClick={() => setInviteOpen(true)} icon={<UserPlus size={18} />}>
               Invite caregiver
             </NavButton>
@@ -183,8 +193,10 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             onComplete={openCompletion}
             onOpenHandoff={() => setView("handoff")}
           />
-        ) : (
+        ) : view === "handoff" ? (
           <HandoffView circle={circle} occurrences={occurrences} />
+        ) : (
+          <ScheduleView circle={circle} onEdit={setScheduleEditor} />
         )}
       </section>
 
@@ -195,6 +207,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         <button className={view === "handoff" ? "is-active" : ""} onClick={() => setView("handoff")}>
           <MessageSquareText size={19} /><span>Handoff</span>
         </button>
+        {circle.viewerRole === "owner" ? (
+          <button className={view === "schedules" ? "is-active" : ""} onClick={() => setView("schedules")}>
+            <CalendarClock size={19} /><span>Actions</span>
+          </button>
+        ) : null}
         {circle.viewerRole === "owner" ? (
           <button onClick={() => setInviteOpen(true)}>
             <UserPlus size={19} /><span>Invite</span>
@@ -216,7 +233,139 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
       ) : null}
 
       {inviteOpen ? <InviteDialog onClose={() => setInviteOpen(false)} viewerEmail={viewer.email} /> : null}
+      {scheduleEditor ? (
+        <ScheduleDialog
+          schedule={scheduleEditor === "new" ? null : scheduleEditor}
+          onClose={() => setScheduleEditor(null)}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function ScheduleView({ circle, onEdit }: { circle: CareCircle; onEdit: (schedule: CareSchedule | "new") => void }) {
+  return (
+    <div className="page-content schedule-view">
+      <div className="page-heading schedule-page-heading">
+        <div>
+          <span className="eyebrow">Care plan</span>
+          <h1>Daily actions</h1>
+          <p>Each active action creates one fresh record every local day.</p>
+        </div>
+        <button className="primary-button" onClick={() => onEdit("new")}><Plus size={18} /> Add action</button>
+      </div>
+
+      <div className="schedule-management-list">
+        {circle.schedules.map((schedule) => (
+          <article className={`schedule-management-card ${schedule.active ? "" : "is-paused"}`} key={schedule.id}>
+            <div className="schedule-management-time">{formatLocalTime(schedule.localTime)}</div>
+            <div>
+              <div className="schedule-title-line">
+                <h2>{schedule.title}</h2>
+                <span className={`status-pill ${schedule.active ? "status-pill--completed" : "status-pill--upcoming"}`}>
+                  {schedule.active ? "Active" : "Paused"}
+                </span>
+              </div>
+              <p>{schedule.instruction || "No additional instructions."}</p>
+            </div>
+            <button className="secondary-button" onClick={() => onEdit(schedule)}><Pencil size={15} /> Edit</button>
+          </article>
+        ))}
+        {!circle.schedules.length ? (
+          <div className="schedule-empty">
+            <CalendarClock size={28} />
+            <h2>No daily actions yet</h2>
+            <p>Add the first recurring care action for this circle.</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatLocalTime(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })
+    .format(new Date(Date.UTC(2020, 0, 1, hour, minute)));
+}
+
+function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; onClose: () => void }) {
+  const router = useRouter();
+  const [title, setTitle] = useState(schedule?.title ?? "");
+  const [instruction, setInstruction] = useState(schedule?.instruction ?? "");
+  const [localTime, setLocalTime] = useState(schedule?.localTime ?? "09:00");
+  const [active, setActive] = useState(schedule?.active ?? true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [saving]);
+
+  function close() {
+    if (!saving) setClosing(true);
+  }
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch(schedule ? `/api/schedules/${schedule.id}` : "/api/schedules", {
+        method: schedule ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, instruction: instruction || undefined, localTime, active }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The daily action could not be saved.");
+      close();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The daily action could not be saved.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onClose(); }}>
+      <section className={`dialog schedule-dialog ${closing ? "dialog--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="schedule-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close" disabled={saving}><X size={19} /></button>
+        <form onSubmit={save}>
+          <span className="section-kicker">Daily schedule</span>
+          <h2 id="schedule-title">{schedule ? "Edit daily action" : "Add a daily action"}</h2>
+          <label className="invite-field">
+            <span>Action name</span>
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Morning routine" required />
+          </label>
+          <label className="invite-field">
+            <span>Daily time</span>
+            <input type="time" value={localTime} onChange={(event) => setLocalTime(event.target.value)} required />
+          </label>
+          <label className="note-field schedule-note-field">
+            <span>Instructions <small>optional</small></span>
+            <textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="What should the caregiver know?" />
+          </label>
+          {schedule ? (
+            <label className="schedule-active-field">
+              <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />
+              <span><strong>Active every day</strong><small>Pause this to stop creating new daily records.</small></span>
+            </label>
+          ) : null}
+          {message ? <p className="form-error">{message}</p> : null}
+          <div className="dialog-actions">
+            <button className="secondary-button" type="button" onClick={close}>Cancel</button>
+            <button className="primary-button" disabled={saving || title.trim().length < 2}>
+              {saving ? "Saving…" : "Save action"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -431,6 +580,15 @@ function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () =>
 
 function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences: Occurrence[] }) {
   const dueCount = occurrences.filter((item) => item.status === "due").length;
+  const eventGroups = circle.timeline.reduce<Array<{ key: string; label: string; events: CareCircle["timeline"] }>>(
+    (groups, event) => {
+      const current = groups.at(-1);
+      if (current?.key === event.dateKey) current.events.push(event);
+      else groups.push({ key: event.dateKey, label: event.dateLabel, events: [event] });
+      return groups;
+    },
+    [],
+  );
   return (
     <div className="page-content handoff-view">
       <div className="page-heading">
@@ -443,18 +601,22 @@ function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences:
 
       <div className="handoff-layout">
         <section className="handoff-feed">
-          <div className="date-divider"><span>Today</span></div>
-          {circle.timeline.map((event) => (
-            <article className="handoff-event" key={event.id}>
-              <span className={`event-icon event-icon--${event.tone}`}>
-                {event.tone === "success" ? <Check size={17} /> : event.tone === "attention" ? <CircleAlert size={17} /> : <MessageSquareText size={17} />}
-              </span>
-              <div>
-                <span className="timeline-time">{event.time}</span>
-                <h3>{event.title}</h3>
-                <p>{event.detail}</p>
-              </div>
-            </article>
+          {eventGroups.map((group) => (
+            <div className="handoff-day" key={group.key}>
+              <div className="date-divider"><span>{group.label}</span></div>
+              {group.events.map((event) => (
+                <article className="handoff-event" key={event.id}>
+                  <span className={`event-icon event-icon--${event.tone}`}>
+                    {event.tone === "success" ? <Check size={17} /> : event.tone === "attention" ? <CircleAlert size={17} /> : <MessageSquareText size={17} />}
+                  </span>
+                  <div>
+                    <span className="timeline-time">{event.time}</span>
+                    <h3>{event.title}</h3>
+                    <p>{event.detail}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           ))}
           {!circle.timeline.length ? <p className="empty-copy">The handoff will appear here after the first recorded outcome.</p> : null}
         </section>
@@ -490,11 +652,24 @@ function CompletionDialog({
   circleName: string;
 }) {
   const isResult = state === "saved" || state === "race" || state === "error";
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && state !== "saving") setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [state]);
+
+  function close() {
+    if (state !== "saving") setClosing(true);
+  }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className={`dialog ${state === "race" ? "dialog--race" : ""}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="dialog-close" onClick={onClose} aria-label="Close"><X size={19} /></button>
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onClose(); }}>
+      <section className={`dialog ${state === "race" ? "dialog--race" : ""} ${closing ? "dialog--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close" disabled={state === "saving"}><X size={19} /></button>
 
         {state === "confirm" ? (
           <>
@@ -507,8 +682,8 @@ function CompletionDialog({
               <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} placeholder="Anything the next caregiver should know?" />
             </label>
             <div className="dialog-actions">
-              <button className="secondary-button" onClick={onClose}>Cancel</button>
-              <button className="primary-button" onClick={onConfirm}><Check size={18} /> Confirm completion</button>
+              <button className="secondary-button" type="button" onClick={close}>Cancel</button>
+              <button className="primary-button" type="button" onClick={onConfirm}><Check size={18} /> Confirm completion</button>
             </div>
           </>
         ) : null}
@@ -550,7 +725,7 @@ function CompletionDialog({
           </div>
         ) : null}
 
-        {isResult ? <button className="primary-button full-button" onClick={onClose}>Back to today</button> : null}
+        {isResult ? <button className="primary-button full-button" type="button" onClick={close}>Back to today</button> : null}
       </section>
     </div>
   );

@@ -10,6 +10,11 @@ export const demoCircle: CareCircle = {
     { id: "demo-maya", name: "Maya", initials: "MC", color: "sage" },
     { id: "demo-sam", name: "Sam", initials: "SK", color: "amber" },
   ],
+  schedules: [
+    { id: "schedule-morning", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", active: true },
+    { id: "schedule-midday", title: "Midday routine", instruction: "One scheduled action", localTime: "12:30", active: true },
+    { id: "schedule-evening", title: "Evening check-in", instruction: "After dinner", localTime: "19:00", active: true },
+  ],
   occurrences: [
     {
       id: "occ-morning-checkin",
@@ -41,6 +46,8 @@ export const demoCircle: CareCircle = {
   timeline: [
     {
       id: "evt-1",
+      dateKey: "2026-10-19",
+      dateLabel: "Today",
       time: "8:04 AM",
       title: "Morning check-in completed",
       detail: "Maya recorded it · Breakfast finished normally",
@@ -48,14 +55,18 @@ export const demoCircle: CareCircle = {
     },
     {
       id: "evt-2",
-      time: "Yesterday · 9:18 PM",
+      dateKey: "2026-10-18",
+      dateLabel: "Yesterday",
+      time: "9:18 PM",
       title: "Handoff note added",
       detail: "Sam: Tomorrow’s schedule is ready. Nothing unusual to flag.",
       tone: "neutral",
     },
     {
       id: "evt-3",
-      time: "Yesterday · 7:06 PM",
+      dateKey: "2026-10-18",
+      dateLabel: "Yesterday",
+      time: "7:06 PM",
       title: "Evening check-in corrected",
       detail: "Omar corrected “skipped” to “completed”; both events remain in history.",
       tone: "attention",

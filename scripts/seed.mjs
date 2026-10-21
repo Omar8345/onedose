@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import nextEnv from "@next/env";
-import { AppwriteException, Client, TablesDB } from "node-appwrite";
+import { AppwriteException, Client, TablesDB, Teams } from "node-appwrite";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -26,6 +26,7 @@ const client = new Client()
   .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID)
   .setKey(process.env.APPWRITE_API_KEY);
 const tables = new TablesDB(client);
+const teams = new Teams(client);
 
 const ids = {
   circle: "demo_circle_nora",
@@ -106,6 +107,15 @@ async function ensureRow(tableId, rowId, data, options = {}) {
 const occurrence = dubaiOccurrence();
 
 console.log(`Seeding synthetic OneDose data in database ${databaseId}...`);
+
+try {
+  await teams.get({ teamId: ids.team });
+  console.log(`✓ team/${ids.team} already matches`);
+} catch (error) {
+  if (!isMissing(error)) throw error;
+  await teams.create({ teamId: ids.team, name: "Nora’s demo care", roles: ["owner", "caregiver"] });
+  console.log(`+ created team/${ids.team}`);
+}
 
 await ensureRow("care_circles", ids.circle, {
   name: "Nora’s care",

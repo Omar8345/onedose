@@ -4,11 +4,18 @@ import { Query, type Models } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { TABLES, type OccurrenceRow } from "@/lib/domain/schema";
+import { localDateKey, localDateLabel } from "@/lib/domain/time";
 import type { CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 
 type CircleRow = Models.Row & { name: string; timezone: string; teamId: string };
 type RecipientRow = Models.Row & { displayName: string };
-type ScheduleRow = Models.Row & { title: string; instruction: string | null; timezone: string };
+type ScheduleRow = Models.Row & {
+  title: string;
+  instruction: string | null;
+  localTime: string;
+  timezone: string;
+  active: boolean;
+};
 type MemberRow = Models.Row & {
   userId: string;
   role: "owner" | "caregiver" | "viewer";
@@ -35,7 +42,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const circle = await tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId });
   const [recipients, schedules, circleMembers, occurrences, events, teamMemberships] = await Promise.all([
     tables.listRows<RecipientRow>({ databaseId, tableId: TABLES.recipients, queries: [Query.equal("circleId", [circleId]), Query.limit(25)], total: false }),
-    tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.equal("active", [true]), Query.limit(100)], total: false }),
+    tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<MemberRow>({ databaseId, tableId: TABLES.members, queries: [Query.equal("circleId", [circleId]), Query.equal("status", ["active"]), Query.limit(25)], total: false }),
     tables.listRows<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, queries: [Query.equal("circleId", [circleId]), Query.orderAsc("dueAt"), Query.limit(100)], total: false }),
     tables.listRows<EventRow>({ databaseId, tableId: TABLES.events, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("recordedAt"), Query.limit(50)], total: false }),
@@ -43,6 +50,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   ]);
 
   const scheduleById = new Map(schedules.rows.map((schedule) => [schedule.$id, schedule]));
+  const todayKey = localDateKey(new Date(), circle.timezone);
   const occurrenceById = new Map(occurrences.rows.map((occurrence) => [occurrence.$id, occurrence]));
   const recipient = recipients.rows[0];
   const teamMemberNames = new Map(
@@ -53,7 +61,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const person = (actorId: string) => actorId === viewer.id ? viewer.name : teamMemberNames.get(actorId) || "Caregiver";
   const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
-    if (!schedule) return [];
+    if (!schedule || !schedule.active || localDateKey(new Date(row.dueAt), circle.timezone) !== todayKey) return [];
     const recorded = row.status !== "due";
     return [{
       id: row.$id,
@@ -74,6 +82,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     const actor = person(event.actorId);
     return {
       id: event.$id,
+      dateKey: localDateKey(new Date(event.occurredAt), circle.timezone),
+      dateLabel: localDateLabel(new Date(event.occurredAt), circle.timezone),
       time: formatTime(event.occurredAt, circle.timezone),
       title: corrected ? "Outcome corrected" : `${schedule?.title ?? "Care action"} recorded`,
       detail: event.note ? `${actor}: ${event.note}` : `${actor} recorded ${event.outcome}`,
@@ -94,6 +104,13 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
     viewerRole: circleMembers.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver",
     members,
+    schedules: schedules.rows.map((schedule) => ({
+      id: schedule.$id,
+      title: schedule.title,
+      instruction: schedule.instruction ?? "",
+      localTime: schedule.localTime,
+      active: schedule.active,
+    })),
     occurrences: occurrenceViews,
     timeline,
   };

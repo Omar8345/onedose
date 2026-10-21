@@ -13,10 +13,20 @@ export type Occurrence = {
 
 export type TimelineEvent = {
   id: string;
+  dateKey: string;
+  dateLabel: string;
   time: string;
   title: string;
   detail: string;
   tone: "success" | "neutral" | "attention";
+};
+
+export type CareSchedule = {
+  id: string;
+  title: string;
+  instruction: string;
+  localTime: string;
+  active: boolean;
 };
 
 export type CareCircle = {
@@ -25,6 +35,7 @@ export type CareCircle = {
   dateLabel: string;
   viewerRole: "owner" | "caregiver" | "viewer";
   members: { id: string; name: string; initials: string; color: string }[];
+  schedules: CareSchedule[];
   occurrences: Occurrence[];
   timeline: TimelineEvent[];
 };

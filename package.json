@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:provision": "node scripts/provision.mjs",
     "db:seed": "node scripts/seed.mjs",
+    "test:schedules": "node --conditions=react-server --import tsx scripts/schedule-test.mts",
     "test:race": "node --conditions=react-server --import tsx scripts/race-test.mts"
   },
   "dependencies": {
