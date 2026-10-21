@@ -493,8 +493,10 @@ function TodayView({
   onComplete: (occurrence: Occurrence) => void;
   onOpenHandoff: () => void;
 }) {
-  const dueCount = occurrences.filter((item) => item.status === "due").length;
-  const focus = occurrences.find((item) => item.status === "due") ?? occurrences.find((item) => item.status === "upcoming") ?? occurrences[0];
+  const dueCount = occurrences.filter((item) => item.status === "due" || item.status === "overdue").length;
+  const focus = occurrences.find((item) => item.status === "overdue")
+    ?? occurrences.find((item) => item.status === "due")
+    ?? occurrences.find((item) => item.status === "upcoming");
 
   return (
     <div className="page-content">
@@ -507,21 +509,32 @@ function TodayView({
         <div className="timezone"><Clock3 size={15} /> {circle.timezone}</div>
       </div>
 
-      {focus ? <section className="focus-card">
+      {focus ? <section className={`focus-card ${focus.status === "overdue" ? "focus-card--overdue" : ""}`}>
         <div className="focus-copy">
           <span className="section-kicker">Next up</span>
           <p className="focus-time">{focus.time.replace(/\s[AP]M$/, "")}</p>
           <span className="focus-meridiem">{focus.time.match(/[AP]M$/)?.[0]}</span>
         </div>
         <div className="focus-details">
-          <span className={`status-pill status-pill--${focus.status}`}>{focus.status === "completed" ? "Recorded" : focus.status === "due" ? "Due now" : "Upcoming"}</span>
+          <span className={`status-pill status-pill--${focus.status}`}>
+            {focus.status === "overdue" ? "Overdue" : focus.status === "due" ? "Due now" : "Upcoming"}
+          </span>
           <h2>{focus.title}</h2>
           <p>{focus.detail}</p>
         </div>
-        <button className="primary-button" onClick={() => onComplete(focus)} disabled={focus.status === "completed"}>
-          {focus.status === "completed" ? <><Check size={18} /> Recorded</> : <>Record outcome <ArrowRight size={18} /></>}
+        <button className="primary-button" onClick={() => onComplete(focus)}>
+          Record outcome <ArrowRight size={18} />
         </button>
-      </section> : null}
+      </section> : (
+        <section className="focus-card focus-card--complete">
+          <div className="focus-complete-icon"><CheckCircle2 size={28} /></div>
+          <div className="focus-details">
+            <span className="status-pill status-pill--completed">All done</span>
+            <h2>{occurrences.length ? "Everything is recorded" : "No actions scheduled"}</h2>
+            <p>{occurrences.length ? "There is nothing left to record for today." : "Your care circle has no actions scheduled today."}</p>
+          </div>
+        </section>
+      )}
 
       <div className="content-grid">
         <section>
@@ -567,19 +580,19 @@ function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () =>
         <div className="schedule-title-line">
           <h3>{item.title}</h3>
           <span className={`status-pill status-pill--${item.status}`}>
-            {item.status === "completed" ? "Completed" : item.status === "due" ? "Due now" : "Upcoming"}
+            {item.status === "completed" ? "Completed" : item.status === "overdue" ? "Overdue" : item.status === "due" ? "Due now" : "Upcoming"}
           </span>
         </div>
         <p>{item.detail}</p>
         {item.completedBy ? <small>Recorded by {item.completedBy} · {item.completedAt}</small> : null}
       </div>
-      {item.status === "due" ? <button className="row-action" onClick={onComplete}>Record <ArrowRight size={15} /></button> : null}
+      {item.status === "due" || item.status === "overdue" ? <button className="row-action" onClick={onComplete}>Record <ArrowRight size={15} /></button> : null}
     </article>
   );
 }
 
 function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences: Occurrence[] }) {
-  const dueCount = occurrences.filter((item) => item.status === "due").length;
+  const dueCount = occurrences.filter((item) => item.status === "due" || item.status === "overdue").length;
   const eventGroups = circle.timeline.reduce<Array<{ key: string; label: string; events: CareCircle["timeline"] }>>(
     (groups, event) => {
       const current = groups.at(-1);

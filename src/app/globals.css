@@ -118,6 +118,9 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .focus-card .primary-button { transition: background-color .2s ease, box-shadow .2s ease; }
 .focus-card .primary-button:hover { background: white; transform: none; box-shadow: 0 8px 20px rgba(31,48,42,.16); }
 .focus-card .primary-button:active { transform: none; }
+.focus-card--complete { grid-template-columns: auto 1fr; align-items: center; gap: 30px; }
+.focus-card--complete .focus-details { border-left: 0; padding-left: 0; }
+.focus-complete-icon { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; background: #f5f8ef; color: var(--sage); box-shadow: 0 8px 18px rgba(20,58,46,.14); }
 .secondary-button { min-height: 40px; border-radius: 10px; padding: 0 14px; border: 1px solid #ccd1cb; background: var(--surface); transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
 .secondary-button:hover { border-color: var(--sage); background: var(--sage-soft); color: var(--sage); }
 .text-button { background: transparent; color: var(--sage); padding: 8px; }
@@ -127,22 +130,39 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 
 .status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font: 600 10px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .05em; }
 .status-pill--due { background: var(--coral-soft); color: #a64535; }
+.status-pill--overdue { background: #a64535; color: white; }
 .status-pill--upcoming { background: #edf0ec; color: #69736d; }
 .status-pill--completed { background: var(--sage-soft); color: #2f6b52; }
 .focus-card .status-pill--due { background: #f5cabb; color: #723528; }
+.focus-card .status-pill--overdue { background: #fff1eb; color: #8f3023; }
+.focus-card--overdue { background: #b84d3d; }
+.focus-card--overdue .focus-copy .section-kicker { color: #f8d5cc; }
+.focus-card--overdue .focus-meridiem,
+.focus-card--overdue .focus-details p { color: #f7d9d1; }
+.focus-card--overdue .focus-details { border-color: rgba(255,255,255,.3); }
+.focus-card--overdue::after { border-color: rgba(255,255,255,.16); }
+.focus-card--overdue .primary-button { background: #fff8ef; color: #7f3025; }
+.focus-card--overdue .primary-button:hover { background: white; }
 
 .content-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(310px, .75fr); gap: 28px; margin-top: 44px; }
 .section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .section-heading h2 { margin: 6px 0 0; font-size: 23px; letter-spacing: -.035em; }
-.schedule-list { border-top: 1px solid var(--line); }
+.schedule-list { border-top: 0; }
 .schedule-row { display: grid; grid-template-columns: 78px 28px 1fr auto; gap: 14px; align-items: center; min-height: 112px; border-bottom: 1px solid var(--line); padding: 18px 3px; position: relative; }
 .schedule-time { color: var(--muted); font: 500 12px var(--font-mono), monospace; }
 .schedule-marker { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1px solid #cbd1ca; color: white; position: relative; }
 .schedule-marker i { width: 7px; height: 7px; background: #aab4ae; border-radius: 50%; }
 .schedule-row--completed .schedule-marker { background: var(--sage); border-color: var(--sage); }
 .schedule-row--due .schedule-marker { border-color: var(--coral); box-shadow: 0 0 0 5px var(--coral-soft); }
+.schedule-row--overdue .schedule-marker { border-color: var(--coral); }
+.schedule-row--overdue { box-shadow: none; }
+.schedule-row--overdue .schedule-marker { box-shadow: none; }
+.schedule-row--overdue .schedule-time,
+.schedule-row--overdue .schedule-copy h3,
+.schedule-row--overdue .row-action { color: #c45140; }
 .schedule-row--due .schedule-marker::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; background: rgba(233,108,87,.24); animation: dot-pulse 2.2s ease-out infinite; pointer-events: none; }
-.schedule-row--due .schedule-marker i { background: var(--coral); }
+.schedule-row--due .schedule-marker i,
+.schedule-row--overdue .schedule-marker i { background: var(--coral); }
 .schedule-title-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .schedule-copy h3 { margin: 0; font-size: 16px; }
 .schedule-copy p { color: var(--muted); margin: 5px 0 0; }
@@ -337,6 +357,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 @media (prefers-reduced-motion: reduce) {
   .presence > span i::after,
   .schedule-row--due .schedule-marker::after,
+  .schedule-row--overdue .schedule-marker::after,
   .race-dot--won::after,
   .race-dot--stopped::after { animation: none; }
 }
@@ -356,6 +377,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .page-content { padding-inline: 34px; }
   .focus-card { grid-template-columns: 140px 1fr; }
   .focus-card > .primary-button { grid-column: 2; justify-self: start; }
+  .focus-card--complete .focus-details { border-top: 0; padding-top: 0; }
   .content-grid { grid-template-columns: 1fr; }
   .activity-panel { display: none; }
   .handoff-layout { grid-template-columns: 1fr; gap: 30px; }
@@ -399,6 +421,8 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .focus-copy { width: fit-content; }
   .focus-details { border-left: 0; border-top: 1px solid rgba(255,255,255,.2); padding: 20px 0 0; }
   .focus-card > .primary-button { grid-column: 1; width: 100%; }
+  .focus-card--complete { grid-template-columns: 1fr; gap: 16px; }
+  .focus-card--complete .focus-details { border-top: 0; padding-top: 0; }
   .content-grid { margin-top: 35px; }
   .schedule-row { grid-template-columns: 60px 24px 1fr; gap: 10px; min-height: 118px; }
   .schedule-row .row-action { grid-column: 3; justify-self: start; padding-top: 0; }

@@ -69,7 +69,13 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       title: schedule.title,
       detail: schedule.instruction ?? "Scheduled care action",
       instruction: schedule.instruction ?? "Record the outcome when complete.",
-      status: recorded ? "completed" : Date.parse(row.dueAt) > Date.now() ? "upcoming" : "due",
+      status: recorded
+        ? "completed"
+        : Date.parse(row.dueAt) > Date.now()
+          ? "upcoming"
+          : Date.now() - Date.parse(row.dueAt) >= 60 * 60_000
+            ? "overdue"
+            : "due",
       completedBy: row.completedBy ? person(row.completedBy) : undefined,
       completedAt: row.completedAt ? formatTime(row.completedAt, schedule.timezone) : undefined,
     }];

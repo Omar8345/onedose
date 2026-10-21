@@ -1,4 +1,4 @@
-export type OccurrenceStatus = "due" | "upcoming" | "completed";
+export type OccurrenceStatus = "overdue" | "due" | "upcoming" | "completed";
 
 export type Occurrence = {
   id: string;
