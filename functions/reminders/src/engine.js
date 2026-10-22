@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { Permission, Query, Role } from "node-appwrite";
 
@@ -171,6 +172,18 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+const EMAIL_TEMPLATES = {
+  due: readFileSync(new URL("./emails/reminder.html", import.meta.url), "utf8"),
+  overdue: readFileSync(new URL("./emails/overdue.html", import.meta.url), "utf8"),
+};
+
+function renderEmailTemplate(template, values) {
+  return Object.entries(values).reduce(
+    (output, [key, value]) => output.replaceAll(`{{${key}}}`, escapeHtml(value)),
+    template,
+  );
+}
+
 function emailFor({ kind, circle, schedule, dueAt, appUrl }) {
   const overdue = kind === "overdue";
   const title = schedule?.title || "A scheduled care action";
@@ -180,13 +193,22 @@ function emailFor({ kind, circle, schedule, dueAt, appUrl }) {
     minute: "2-digit",
   }).format(new Date(dueAt));
   const subject = overdue ? `OneDose alert: ${title} is overdue` : `OneDose reminder: ${title} is due`;
+  const heading = overdue ? `${title} is overdue` : `${title} is due`;
   const message = overdue
-    ? `No outcome has been recorded for ${title}, due at ${time}. Please check with the care circle before acting.`
-    : `${title} is due at ${time}. Open OneDose to record the outcome.`;
+    ? `No outcome has been recorded for this action, due at ${time}. Please check with the care circle before acting.`
+    : `This action is due at ${time}. Open OneDose to record what happened for everyone helping with care.`;
 
   return {
     subject,
-    content: `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17251f"><h2>${escapeHtml(subject)}</h2><p>${escapeHtml(message)}</p><p><strong>${escapeHtml(circle.name)}</strong></p><p><a href="${escapeHtml(appUrl)}">Open OneDose</a></p><p style="color:#66736d;font-size:13px">OneDose coordinates shared care records. Confirm the situation with your care circle before acting.</p></div>`,
+    content: renderEmailTemplate(EMAIL_TEMPLATES[kind], {
+      subject,
+      preheader: `${heading} in ${circle.name}.`,
+      heading,
+      message,
+      circle: circle.name,
+      appUrl,
+      buttonLabel: overdue ? "Check care circle" : "Record outcome",
+    }),
   };
 }
 
