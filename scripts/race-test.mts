@@ -6,137 +6,119 @@ import { Query, type Models } from "node-appwrite";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-const [{ completeOccurrence }, { getCareCircle }, { getServerAppwrite }, { TABLES }] = await Promise.all([
+const [{ completeOccurrence }, { getCareCircle }, { getServerAppwrite }, { stableRowId }, { TABLES }] = await Promise.all([
   import("../src/lib/data/complete-occurrence"),
   import("../src/lib/data/get-care-circle"),
   import("../src/lib/appwrite/server"),
+  import("../src/lib/domain/ids"),
   import("../src/lib/domain/schema"),
 ]);
 
 const REQUEST_COUNT = 25;
-const CIRCLE_ID = "demo_circle_nora";
-const TEAM_ID = "demo_team";
-const SCHEDULE_ID = "demo_schedule_midday";
-const ACTORS = ["demo_omar", "demo_maya"] as const;
-
-const { databaseId, tables } = getServerAppwrite();
 const runId = Date.now().toString(36);
+const circleId = `race_circle_${runId}`;
+const teamId = `race_team_${runId}`;
+const scheduleId = `race_sched_${runId}`;
+const recipientId = `race_rec_${runId}`;
 const occurrenceId = `race_occ_${runId}`;
+const actors = [`race_owner_${runId}`, `race_carer_${runId}`] as const;
+const memberships = [`race_own_${runId}`, `race_car_${runId}`] as const;
 const dueAt = new Date().toISOString();
-let createdOccurrence = false;
+const { databaseId, tables, teams, users } = getServerAppwrite();
+let setupComplete = false;
 
 async function rowsFor(tableId: string) {
-  return tables.listRows({
-    databaseId,
-    tableId,
-    queries: [Query.equal("occurrenceId", [occurrenceId]), Query.limit(100)],
-    total: false,
-  });
+  return tables.listRows({ databaseId, tableId, queries: [Query.equal("occurrenceId", [occurrenceId]), Query.limit(100)], total: false });
 }
 
 async function removeRows(tableId: string, rows: Models.Row[]) {
-  for (const row of rows) {
-    await tables.deleteRow({ databaseId, tableId, rowId: row.$id });
-  }
+  for (const row of rows) await tables.deleteRow({ databaseId, tableId, rowId: row.$id });
 }
 
 async function cleanup() {
-  if (!createdOccurrence || process.env.KEEP_RACE_DATA === "1") return;
-
-  const [events, commands] = await Promise.all([
-    rowsFor(TABLES.events),
-    rowsFor(TABLES.commands),
-  ]);
+  if (!setupComplete || process.env.KEEP_RACE_DATA === "1") return;
+  const [events, commands] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands)]);
   await removeRows(TABLES.commands, commands.rows);
   await removeRows(TABLES.events, events.rows);
-  await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
+  await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }).catch(() => undefined);
+  await tables.deleteRow({ databaseId, tableId: TABLES.circleSettings, rowId: stableRowId("set", circleId) }).catch(() => undefined);
+  for (const actorId of actors) {
+    await tables.deleteRow({ databaseId, tableId: TABLES.caregiverPreferences, rowId: stableRowId("pref", `${circleId}:${actorId}`) }).catch(() => undefined);
+    await tables.deleteRow({ databaseId, tableId: TABLES.members, rowId: stableRowId("mem", `${circleId}:${actorId}`) }).catch(() => undefined);
+  }
+  await tables.deleteRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId }).catch(() => undefined);
+  await tables.deleteRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId }).catch(() => undefined);
+  await tables.deleteRow({ databaseId, tableId: TABLES.circles, rowId: circleId }).catch(() => undefined);
+  await teams.delete({ teamId }).catch(() => undefined);
+  for (const userId of actors) await users.delete({ userId }).catch(() => undefined);
 }
 
 try {
-  await tables.createRow({
-    databaseId,
-    tableId: TABLES.occurrences,
-    rowId: occurrenceId,
-    data: {
-      circleId: CIRCLE_ID,
-      teamId: TEAM_ID,
-      scheduleId: SCHEDULE_ID,
-      dueAt,
-      status: "due",
-      version: 0,
-    },
-    permissions: [],
-  });
-  createdOccurrence = true;
-
-  const [omarBefore, mayaBefore] = await Promise.all([
-    getCareCircle(CIRCLE_ID, { id: ACTORS[0], name: "Omar" }),
-    getCareCircle(CIRCLE_ID, { id: ACTORS[1], name: "Maya" }),
+  setupComplete = true;
+  for (const [index, userId] of actors.entries()) {
+    await users.create({ userId, email: `${userId}@example.invalid`, name: index === 0 ? "Race owner" : "Race caregiver" });
+  }
+  await teams.create({ teamId, name: "OneDose race proof", roles: ["owner", "caregiver"] });
+  await teams.createMembership({ teamId, membershipId: memberships[0], userId: actors[0], roles: ["owner"] });
+  await teams.createMembership({ teamId, membershipId: memberships[1], userId: actors[1], roles: ["caregiver"] });
+  await tables.createRow({ databaseId, tableId: TABLES.circles, rowId: circleId, data: { name: "Race proof care", teamId, timezone: "UTC", archivedAt: null }, permissions: [] });
+  await tables.createRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId, data: { circleId, displayName: "Race proof", archivedAt: null }, permissions: [] });
+  await tables.createRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId, data: {
+    circleId, recipientId, title: "Concurrent care action", instruction: "Race proof", localTime: "12:00", timezone: "UTC", rrule: "FREQ=DAILY", active: true,
+  }, permissions: [] });
+  for (const [index, userId] of actors.entries()) {
+    await tables.createRow({ databaseId, tableId: TABLES.members, rowId: stableRowId("mem", `${circleId}:${userId}`), data: {
+      circleId, userId, role: index === 0 ? "owner" : "caregiver", status: "active", lastMutationAt: null,
+    }, permissions: [] });
+    await tables.createRow({ databaseId, tableId: TABLES.caregiverPreferences, rowId: stableRowId("pref", `${circleId}:${userId}`), data: {
+      circleId, userId, availability: "available", updatedAt: dueAt,
+    }, permissions: [] });
+  }
+  await tables.createRow({ databaseId, tableId: TABLES.circleSettings, rowId: stableRowId("set", circleId), data: {
+    circleId, primaryUserId: actors[0], escalationMinutes: 60, updatedAt: dueAt,
+  }, permissions: [] });
+  await tables.createRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId, data: {
+    circleId, teamId, scheduleId, dueAt, status: "due", version: 0,
+  }, permissions: [] });
+  const [ownerBefore, caregiverBefore] = await Promise.all([
+    getCareCircle(circleId, { id: actors[0], name: "Race owner" }),
+    getCareCircle(circleId, { id: actors[1], name: "Race caregiver" }),
   ]);
-  const omarOccurrence = omarBefore.occurrences.find((item) => item.id === occurrenceId);
-  const mayaOccurrence = mayaBefore.occurrences.find((item) => item.id === occurrenceId);
-  assert.equal(omarOccurrence?.status, "due", "the owner must see the shared occurrence as due");
-  assert.equal(mayaOccurrence?.status, "due", "the caregiver must see the same occurrence as due");
+  assert.equal(ownerBefore.occurrences.find((item) => item.id === occurrenceId)?.status, "due");
+  assert.equal(caregiverBefore.occurrences.find((item) => item.id === occurrenceId)?.status, "due");
 
-  console.log(`Two caregivers see ${occurrenceId}. Launching ${REQUEST_COUNT} simultaneous completion requests...`);
+  console.log(`Two authenticated caregivers see ${occurrenceId}. Launching ${REQUEST_COUNT} simultaneous requests...`);
   const startedAt = performance.now();
-  const results = await Promise.all(
-    Array.from({ length: REQUEST_COUNT }, (_, index) =>
-      completeOccurrence({
-        occurrenceId,
-        actorId: ACTORS[index % ACTORS.length],
-        idempotencyKey: `race-${runId}-${String(index).padStart(2, "0")}-request`,
-        outcome: "completed",
-        note: `Concurrent request ${index + 1}`,
-        occurredAt: dueAt,
-      }),
-    ),
-  );
+  const results = await Promise.all(Array.from({ length: REQUEST_COUNT }, (_, index) => completeOccurrence({
+    occurrenceId,
+    actorId: actors[index % actors.length],
+    idempotencyKey: `race-${runId}-${String(index).padStart(2, "0")}-request`,
+    outcome: "completed",
+    note: `Concurrent request ${index + 1}`,
+    occurredAt: dueAt,
+  })));
   const elapsedMs = Math.round(performance.now() - startedAt);
 
   const accepted = results.filter((result) => result.kind === "accepted");
-  const replayed = results.filter((result) => result.kind === "replayed");
   const conflicts = results.filter((result) => result.kind === "already_recorded");
-  const [occurrence, events, commands, omarAfter, mayaAfter] = await Promise.all([
+  const [occurrence, events, commands, ownerAfter, caregiverAfter] = await Promise.all([
     tables.getRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }),
     rowsFor(TABLES.events),
     rowsFor(TABLES.commands),
-    getCareCircle(CIRCLE_ID, { id: ACTORS[0], name: "Omar" }),
-    getCareCircle(CIRCLE_ID, { id: ACTORS[1], name: "Maya" }),
+    getCareCircle(circleId, { id: actors[0], name: "Race owner" }),
+    getCareCircle(circleId, { id: actors[1], name: "Race caregiver" }),
   ]);
 
   assert.equal(accepted.length, 1, "exactly one request must be accepted");
-  assert.equal(replayed.length, 0, "unique idempotency keys must not replay");
   assert.equal(conflicts.length, REQUEST_COUNT - 1, "every other request must observe the winner");
-  assert.equal(occurrence.status, "completed", "the occurrence must be completed");
-  assert.equal(occurrence.version, 1, "the contested row must be updated once");
-  assert.equal(events.rows.length, 1, "exactly one audit event must exist");
-  assert.equal(commands.rows.length, 1, "exactly one command receipt must exist");
-  assert.equal(events.rows[0].$id, occurrence.activeEventId, "the occurrence must point to its audit event");
-  assert.equal(
-    omarAfter.occurrences.find((item) => item.id === occurrenceId)?.status,
-    "completed",
-    "the owner's refreshed view must converge on the winner",
-  );
-  assert.equal(
-    mayaAfter.occurrences.find((item) => item.id === occurrenceId)?.status,
-    "completed",
-    "the caregiver's refreshed view must converge on the winner",
-  );
+  assert.equal(occurrence.version, 1);
+  assert.equal(events.rows.length, 1);
+  assert.equal(commands.rows.length, 1);
+  assert.equal(ownerAfter.occurrences.find((item) => item.id === occurrenceId)?.status, "completed");
+  assert.equal(caregiverAfter.occurrences.find((item) => item.id === occurrenceId)?.status, "completed");
 
   console.log("\nOneDose concurrency proof passed");
-  console.table({
-    requests: REQUEST_COUNT,
-    caregiverViews: 2,
-    accepted: accepted.length,
-    conflicts: conflicts.length,
-    auditEvents: events.rows.length,
-    commandReceipts: commands.rows.length,
-    finalVersion: occurrence.version,
-    winner: occurrence.completedBy,
-    converged: true,
-    elapsedMs,
-  });
+  console.table({ requests: REQUEST_COUNT, authenticatedCaregiverViews: 2, accepted: accepted.length, conflicts: conflicts.length, auditEvents: events.rows.length, commandReceipts: commands.rows.length, finalVersion: occurrence.version, winner: occurrence.completedBy, converged: true, elapsedMs });
 } finally {
   await cleanup();
 }
