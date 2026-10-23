@@ -86,12 +86,18 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       transactionId: transaction.$id,
     });
     const memberId = stableRowId("mem", `${occurrence.circleId}:${input.actorId}`);
-    const member = await tables.getRow<MemberRow>({
-      databaseId,
-      tableId: TABLES.members,
-      rowId: memberId,
-      transactionId: transaction.$id,
-    });
+    let member: MemberRow;
+    try {
+      member = await tables.getRow<MemberRow>({
+        databaseId,
+        tableId: TABLES.members,
+        rowId: memberId,
+        transactionId: transaction.$id,
+      });
+    } catch (error) {
+      if (isMissing(error)) throw new CompletionForbiddenError();
+      throw error;
+    }
 
     if (
       member.circleId !== occurrence.circleId ||

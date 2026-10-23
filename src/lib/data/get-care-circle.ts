@@ -1,9 +1,11 @@
 import "server-only";
 
-import { Query, type Models } from "node-appwrite";
+import { AppwriteException, Query, type Models } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
-import { TABLES, type OccurrenceRow } from "@/lib/domain/schema";
+import { getSessionServices } from "@/lib/auth/session";
+import { TABLES, type MemberRow, type OccurrenceRow } from "@/lib/domain/schema";
+import { stableRowId } from "@/lib/domain/ids";
 import { localDateKey, localDateLabel } from "@/lib/domain/time";
 import type { CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 
@@ -15,10 +17,6 @@ type ScheduleRow = Models.Row & {
   localTime: string;
   timezone: string;
   active: boolean;
-};
-type MemberRow = Models.Row & {
-  userId: string;
-  role: "owner" | "caregiver" | "viewer";
 };
 type EventRow = Models.Row & {
   occurrenceId: string;
@@ -32,7 +30,6 @@ type EventRow = Models.Row & {
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CG";
 }
-
 function formatTime(value: string, timezone: string) {
   return new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", timeZone: timezone }).format(new Date(value));
 }
@@ -105,6 +102,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   });
 
   return {
+    id: circle.$id,
     recipient: circle.name || `${recipient?.displayName ?? "Care"} circle`,
     timezone: circle.timezone,
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
@@ -120,4 +118,42 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     occurrences: occurrenceViews,
     timeline,
   };
+}
+
+export class CareCircleAccessError extends Error {
+  constructor() {
+    super("This caregiver no longer has access to the care circle.");
+    this.name = "CareCircleAccessError";
+  }
+}
+
+export async function assertCareCircleAccess(
+  circleId: string,
+  userId: string,
+  sessionSecret: string,
+) {
+  const { databaseId, tables } = getServerAppwrite();
+  const circle = await tables.getRow<CircleRow>({
+    databaseId,
+    tableId: TABLES.circles,
+    rowId: circleId,
+  });
+
+  try {
+    await getSessionServices(sessionSecret).teams.get({ teamId: circle.teamId });
+    const member = await tables.getRow<MemberRow>({
+      databaseId,
+      tableId: TABLES.members,
+      rowId: stableRowId("mem", `${circleId}:${userId}`),
+    });
+    if (member.status !== "active" || member.userId !== userId || member.circleId !== circleId) {
+      throw new CareCircleAccessError();
+    }
+  } catch (error) {
+    if (error instanceof CareCircleAccessError) throw error;
+    if (error instanceof AppwriteException && (error.code === 401 || error.code === 403 || error.code === 404)) {
+      throw new CareCircleAccessError();
+    }
+    throw error;
+  }
 }
