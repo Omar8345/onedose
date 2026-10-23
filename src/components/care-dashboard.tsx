@@ -16,6 +16,7 @@ import {
   Plus,
   ShieldCheck,
   UserPlus,
+  UsersRound,
   X,
 } from "lucide-react";
 import { Channel, type RealtimeSubscription } from "appwrite";
@@ -25,7 +26,7 @@ import { createRealtime } from "@/lib/appwrite/client";
 import { TABLES } from "@/lib/domain/schema";
 import type { CareCircle, CareSchedule, Occurrence, RecordedOutcome } from "@/lib/types";
 
-type View = "today" | "handoff" | "schedules";
+type View = "today" | "handoff" | "schedules" | "caregivers";
 type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
 type LiveStatus = "connecting" | "live" | "reconnecting" | "offline";
 
@@ -120,6 +121,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
         if (!databaseId) throw new Error("The Appwrite database is not configured.");
         const channels = [
+          Channel.team(circle.teamId),
           Channel.tablesdb(databaseId).table(TABLES.occurrences).row(),
           Channel.tablesdb(databaseId).table(TABLES.events).row(),
           Channel.tablesdb(databaseId).table(TABLES.schedules).row(),
@@ -127,7 +129,9 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         ];
         subscription = await realtime.subscribe(channels, (event) => {
           const changed = event.payload as { circleId?: string };
-          if (disposed || changed.circleId !== circle.id) return;
+          const isCircleChange = changed.circleId === circle.id;
+          const isTeamChange = event.channels.some((channel) => channel === Channel.team(circle.teamId).toString());
+          if (disposed || (!isCircleChange && !isTeamChange)) return;
           setLiveStatus("live");
           setOccurrenceOverrides({});
           if (refreshTimer) clearTimeout(refreshTimer);
@@ -162,7 +166,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
       void subscription?.unsubscribe();
       void realtime?.disconnect();
     };
-  }, [circle.id, router, startRefresh]);
+  }, [circle.id, circle.teamId, router, startRefresh]);
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
@@ -265,6 +269,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             </NavButton>
           ) : null}
           {circle.viewerRole === "owner" ? (
+            <NavButton active={view === "caregivers"} onClick={() => setView("caregivers")} icon={<UsersRound size={18} />}>
+              Caregivers
+            </NavButton>
+          ) : null}
+          {circle.viewerRole === "owner" ? (
             <NavButton onClick={() => setInviteOpen(true)} icon={<UserPlus size={18} />}>
               Invite caregiver
             </NavButton>
@@ -322,6 +331,8 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           />
         ) : view === "handoff" ? (
           <HandoffView circle={circle} occurrences={occurrences} />
+        ) : view === "caregivers" ? (
+          <CaregiversView circle={circle} viewerId={viewer.id} />
         ) : (
           <ScheduleView circle={circle} onEdit={setScheduleEditor} />
         )}
@@ -337,6 +348,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         {circle.viewerRole === "owner" ? (
           <button className={view === "schedules" ? "is-active" : ""} onClick={() => setView("schedules")}>
             <CalendarClock size={19} /><span>Actions</span>
+          </button>
+        ) : null}
+        {circle.viewerRole === "owner" ? (
+          <button className={view === "caregivers" ? "is-active" : ""} onClick={() => setView("caregivers")}>
+            <UsersRound size={19} /><span>People</span>
           </button>
         ) : null}
         {circle.viewerRole === "owner" ? (
@@ -370,6 +386,188 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         />
       ) : null}
     </main>
+  );
+}
+
+function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: string }) {
+  const router = useRouter();
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [caregiverToRevoke, setCaregiverToRevoke] = useState<CareCircle["caregivers"][number] | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function revoke() {
+    if (!caregiverToRevoke) return;
+    const { membershipId } = caregiverToRevoke;
+    setRevoking(membershipId);
+    setErrorMessage("");
+    try {
+      const response = await fetch(`/api/circle/caregivers/${membershipId}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The caregiver could not be revoked.");
+      setCaregiverToRevoke(null);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "The caregiver could not be revoked.");
+    } finally {
+      setRevoking(null);
+    }
+  }
+
+  const active = circle.caregivers.filter((caregiver) => caregiver.status === "active");
+  const pending = circle.caregivers.filter((caregiver) => caregiver.status === "pending");
+
+  return (
+    <div className="page-content caregivers-view">
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">Care circle</span>
+          <h1>Caregivers</h1>
+          <p>Control who can view and record care for {circle.recipient}.</p>
+        </div>
+        <span className="management-badge"><ShieldCheck size={15} /> Owner controls</span>
+      </div>
+
+      {errorMessage ? <p className="form-error caregivers-error" role="alert">{errorMessage}</p> : null}
+
+      <section className="caregiver-section">
+        <div className="section-heading">
+          <div><span className="eyebrow">Access granted</span><h2>Active caregivers</h2></div>
+          <span className="section-count">{active.length}</span>
+        </div>
+        <div className="caregiver-list">
+          {active.map((caregiver) => (
+            <CaregiverCard
+              key={caregiver.membershipId}
+              caregiver={caregiver}
+              canRevoke={caregiver.userId !== viewerId && caregiver.role !== "owner"}
+              revoking={revoking === caregiver.membershipId}
+              onRevoke={() => setCaregiverToRevoke(caregiver)}
+            />
+          ))}
+          {!active.length ? <p className="schedule-empty">No active caregivers yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="caregiver-section">
+        <div className="section-heading">
+          <div><span className="eyebrow">Awaiting acceptance</span><h2>Pending invitations</h2></div>
+          <span className="section-count">{pending.length}</span>
+        </div>
+        <div className="caregiver-list">
+          {pending.map((caregiver) => (
+            <CaregiverCard
+              key={caregiver.membershipId}
+              caregiver={caregiver}
+              canRevoke
+              revoking={revoking === caregiver.membershipId}
+              onRevoke={() => setCaregiverToRevoke(caregiver)}
+            />
+          ))}
+          {!pending.length ? <p className="schedule-empty">No pending invitations.</p> : null}
+        </div>
+      </section>
+      {caregiverToRevoke ? (
+        <RevokeCaregiverDialog
+          caregiver={caregiverToRevoke}
+          saving={revoking === caregiverToRevoke.membershipId}
+          onCancel={() => { if (!revoking) setCaregiverToRevoke(null); }}
+          onConfirm={revoke}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function RevokeCaregiverDialog({
+  caregiver,
+  saving,
+  onCancel,
+  onConfirm,
+}: {
+  caregiver: CareCircle["caregivers"][number];
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving) setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [saving]);
+
+  function close() {
+    if (!saving) setClosing(true);
+  }
+
+  return (
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onCancel(); }}>
+      <section className={`dialog revoke-dialog ${closing ? "dialog--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="revoke-dialog-title" aria-describedby="revoke-dialog-description" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close" disabled={saving}><X size={19} /></button>
+        <div className="revoke-dialog-heading">
+          <span className="result-icon result-icon--protected revoke-dialog-icon"><ShieldCheck size={25} /></span>
+          <div>
+            <span className="section-kicker section-kicker--coral">Access change</span>
+            <h2 id="revoke-dialog-title">Revoke access?</h2>
+          </div>
+        </div>
+        <div className="revoke-dialog-person">
+          <span className="avatar avatar--coral">{initials(caregiver.name)}</span>
+          <span><strong>{caregiver.name}</strong><small>{caregiver.email}</small></span>
+        </div>
+        <p className="dialog-lead" id="revoke-dialog-description">
+          {caregiver.status === "pending"
+            ? "This cancels their pending invitation."
+            : "They will be removed from this care circle and will no longer be able to view or record updates."}
+        </p>
+        <div className="revoke-dialog-note">
+          <CircleAlert size={17} />
+          <span>This action takes effect across their open sessions.</span>
+        </div>
+        <div className="dialog-actions">
+          <button className="secondary-button" type="button" onClick={close} disabled={saving}>Keep access</button>
+          <button className="primary-button revoke-confirm-button" type="button" onClick={onConfirm} disabled={saving}>
+            {saving ? "Revoking…" : "Revoke access"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CaregiverCard({
+  caregiver,
+  canRevoke,
+  revoking,
+  onRevoke,
+}: {
+  caregiver: CareCircle["caregivers"][number];
+  canRevoke: boolean;
+  revoking: boolean;
+  onRevoke: () => void;
+}) {
+  const displayName = caregiver.status === "pending" && caregiver.name === caregiver.email ? "Invited caregiver" : caregiver.name;
+  return (
+    <article className="caregiver-card">
+      <span className="avatar avatar--sage">{initials(displayName)}</span>
+      <div className="caregiver-copy">
+        <div className="caregiver-title">
+          <h3>{displayName}</h3>
+          <span className={`status-pill status-pill--${caregiver.status === "pending" ? "upcoming" : "completed"}`}>
+            {caregiver.status === "pending" ? "Pending" : caregiver.role === "owner" ? "Owner" : "Active"}
+          </span>
+        </div>
+        <p>{caregiver.email}</p>
+      </div>
+      {canRevoke ? (
+        <button className="text-button text-button--danger" type="button" disabled={revoking} onClick={onRevoke}>
+          {revoking ? "Revoking…" : "Revoke access"}
+        </button>
+      ) : <span className="caregiver-owner-label">You</span>}
+    </article>
   );
 }
 
@@ -500,6 +698,7 @@ function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; 
 }
 
 function InviteDialog({ onClose, viewerEmail }: { onClose: () => void; viewerEmail: string }) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"form" | "sending" | "sent" | "error">("form");
   const [message, setMessage] = useState("");
@@ -532,6 +731,7 @@ function InviteDialog({ onClose, viewerEmail }: { onClose: () => void; viewerEma
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "The invitation could not be sent.");
       setStatus("sent");
+      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The invitation could not be sent.");
       setStatus("error");

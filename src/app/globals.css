@@ -214,6 +214,22 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .schedule-active-field input { width: 18px; height: 18px; accent-color: var(--sage); }
 .schedule-active-field span { display: flex; flex-direction: column; }
 .schedule-active-field small { color: #607b6e; margin-top: 3px; }
+.caregivers-view .page-heading { align-items: center; }
+.management-badge { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #c8d8cf; border-radius: 999px; color: #567565; background: var(--sage-soft); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.caregivers-error { margin: -12px 0 20px; }
+.caregiver-section + .caregiver-section { margin-top: 42px; }
+.caregiver-section .section-heading { margin-bottom: 14px; }
+.section-count { min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #eef0ea; color: var(--muted); font: 600 12px var(--font-mono), monospace; }
+.caregiver-list { display: grid; gap: 10px; }
+.caregiver-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 17px 19px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.caregiver-copy { min-width: 0; }
+.caregiver-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.caregiver-title h3 { margin: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caregiver-copy p { margin: 5px 0 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caregiver-card .avatar { width: 38px; height: 38px; font-size: 11px; }
+.text-button--danger { color: #a54434; }
+.text-button--danger:hover { color: #843629; }
+.caregiver-owner-label { color: var(--muted); font-size: 12px; font-weight: 650; }
 .handoff-event { display: grid; grid-template-columns: auto 1fr; gap: 17px; padding: 25px 0; border-bottom: 1px solid var(--line); }
 .event-icon { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #e8ebe7; color: #617069; }
 .event-icon--success { background: var(--sage-soft); color: var(--sage); }
@@ -266,14 +282,29 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .note-field textarea { width: 100%; min-height: 100px; resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: white; color: var(--ink); caret-color: var(--sage); transition: border-color .24s ease, box-shadow .24s ease, background-color .24s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
 .note-field textarea:focus { outline: 0; border-color: var(--sage); box-shadow: 0 0 0 4px rgba(93, 198, 154,.2), 0 6px 16px rgba(57, 105, 87, .08); background: #fffefa; transform: translateY(-1px); }
 .invite-field { display: block; margin-top: 24px; }
-.invite-field span { display: block; font-weight: 650; font-size: 13px; margin-bottom: 8px; }
-.invite-field input { width: 100%; height: 48px; border: 1px solid var(--line); border-radius: 11px; padding: 0 13px; background: white; color: var(--ink); caret-color: var(--sage); transition: border-color .24s ease, box-shadow .24s ease, background-color .24s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
+.invite-field span { display: block; font-weight: 650; font-size: 13px; line-height: 1.25; margin-bottom: 10px; }
+.invite-field input { display: block; width: 100%; height: 48px; border: 1px solid var(--line); border-radius: 11px; padding: 0 13px; background: white; color: var(--ink); caret-color: var(--sage); transition: border-color .24s ease, box-shadow .24s ease, background-color .24s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
 .invite-field input:focus { outline: 0; border-color: var(--sage); box-shadow: 0 0 0 4px rgba(93, 198, 154,.2), 0 6px 16px rgba(57, 105, 87, .08); background: #fffefa; transform: translateY(-1px); }
 .invite-dialog .primary-button:hover { transform: none; box-shadow: 0 8px 20px rgba(119,50,37,.18); }
 .invite-dialog .invite-field { margin-bottom: 0; }
-.invite-dialog .form-error { margin-top: 0; }
+.invite-dialog .form-error { margin-top: 9px; }
 .invite-dialog .dialog-actions { margin-top: 18px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.revoke-dialog { width: min(480px, 100%); padding: 30px; }
+.revoke-dialog-heading { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 14px; padding-right: 36px; }
+.revoke-dialog-icon { width: 52px; height: 52px; margin: 0; }
+.revoke-dialog h2 { margin: 5px 0 0; font-size: 28px; }
+.revoke-dialog-person { display: flex; align-items: center; gap: 11px; margin: 26px 0 20px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 13px; background: #faf9f3; }
+.revoke-dialog-person .avatar { width: 36px; height: 36px; font-size: 11px; }
+.revoke-dialog-person > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.revoke-dialog-person strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.revoke-dialog-person small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.revoke-dialog .dialog-lead { margin: 0; }
+.revoke-dialog-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 20px; padding: 12px 13px; border: 1px solid #f0c9c0; border-radius: 11px; background: var(--coral-soft); color: #8d4437; font-size: 12px; line-height: 1.45; }
+.revoke-dialog-note svg { flex: 0 0 auto; margin-top: 1px; }
+.revoke-dialog .dialog-actions { margin-top: 26px; }
+.revoke-confirm-button { background: #a54434; box-shadow: 0 8px 20px rgba(119,50,37,.14); }
+.revoke-confirm-button:hover { background: #8e392d; box-shadow: 0 10px 23px rgba(119,50,37,.2); }
 .result-state { text-align: center; padding: 16px 0 8px; }
 .result-icon { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 20px; }
 .result-icon--success { color: var(--sage); background: var(--sage-soft); }
@@ -464,14 +495,24 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .section-heading .text-button { font-size: 12px; }
   .dialog { padding: 28px 22px 22px; border-radius: 20px; }
   .dialog h2 { font-size: 26px; }
+  .revoke-dialog { padding: 25px 20px 20px; }
+  .revoke-dialog-heading { grid-template-columns: 46px minmax(0, 1fr); gap: 11px; }
+  .revoke-dialog-icon { width: 46px; height: 46px; }
+  .revoke-dialog h2 { font-size: 24px; }
+  .revoke-dialog-person { margin-top: 22px; }
   .dialog-actions { flex-direction: column-reverse; }
   .dialog-actions button { width: 100%; }
   .race-proof { grid-template-columns: 1fr; }
-  .mobile-nav { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; height: 66px; display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(28,45,55,.96); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 14px 40px rgba(20,30,25,.3); border-radius: 18px; padding: 7px; }
+  .mobile-nav { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; height: 66px; display: grid; grid-template-columns: repeat(5, 1fr); background: rgba(28,45,55,.96); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 14px 40px rgba(20,30,25,.3); border-radius: 18px; padding: 7px; }
   .schedule-page-heading { align-items: stretch; }
   .schedule-page-heading .primary-button { width: 100%; }
   .schedule-management-card { grid-template-columns: 1fr auto; gap: 14px; padding: 19px; }
   .schedule-management-time { grid-column: 1 / -1; font-size: 17px; }
+  .caregivers-view .page-heading { align-items: flex-start; }
+  .management-badge { margin-top: 4px; }
+  .caregiver-card { grid-template-columns: auto minmax(0, 1fr); padding: 15px; }
+  .caregiver-card .text-button, .caregiver-owner-label { grid-column: 2; justify-self: start; }
+  .caregiver-title { align-items: flex-start; flex-direction: column; gap: 5px; }
   .mobile-nav button { border: 0; border-radius: 12px; background: transparent; color: #b8c4bf; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 10px; font-weight: 650; }
   .mobile-nav button.is-active { background: #f8f4ea; color: var(--navy); }
   .page-content { padding-bottom: 105px; }

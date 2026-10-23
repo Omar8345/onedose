@@ -13,6 +13,7 @@ import {
   type OccurrenceRow,
 } from "@/lib/domain/schema";
 import { stableHash, stableRowId } from "@/lib/domain/ids";
+import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
 
 const TRANSACTION_TTL_SECONDS = 60;
 
@@ -100,12 +101,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       throw error;
     }
 
-    if (
-      member.circleId !== occurrence.circleId ||
-      member.userId !== input.actorId ||
-      member.status !== "active" ||
-      member.role === "viewer"
-    ) {
+    if (member.circleId !== occurrence.circleId || !canReadOrRecordCircle(member, input.actorId)) {
       throw new CompletionForbiddenError();
     }
 

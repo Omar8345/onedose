@@ -50,8 +50,9 @@ Open [http://localhost:3000](http://localhost:3000). The public Appwrite
 endpoint, project ID, and database ID are included in `.env.example`. Add your
 own server API key to `.env.local`; never commit it. The key needs TablesDB
 schema/read/write permissions, `sessions.read`, `sessions.write`, `users.read`,
-`users.write`, and `teams.read` for the server-rendered Email OTP, invitation,
-Messaging target, and short-lived Realtime token flows.
+`users.write`, `teams.read`, and `teams.write` for the server-rendered Email OTP,
+invitation, caregiver revocation, Messaging target, and short-lived Realtime
+token flows.
 
 Provision the TablesDB schema after adding an API key with database schema
 permissions:
@@ -101,6 +102,17 @@ completion, replays an identical request without another write, and rejects a
 changed payload that reuses the same idempotency key. It then races 25
 corrections against the winning event, accepts exactly one, preserves both
 audit entries, and rejects a stale correction without overwriting the winner.
+
+Verify caregiver revocation policy protections:
+
+```bash
+npm run test:caregivers
+```
+
+The caregiver proof creates temporary Appwrite users and a Team, revokes a real
+Team membership, verifies the persisted member is revoked, and confirms the
+caregiver's next mutation is rejected. It also checks owner protection and the
+pending-invitation cancellation policy, then removes all temporary data.
 
 The production worker lives in [`functions/reminders`](functions/reminders).
 Deploy that folder as an Appwrite Function with a 60-minute interval, grant

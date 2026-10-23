@@ -31,13 +31,24 @@ export type CareSchedule = {
   active: boolean;
 };
 
+export type Caregiver = {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: "owner" | "caregiver" | "viewer";
+  status: "active" | "pending";
+};
+
 export type CareCircle = {
   id: string;
+  teamId: string;
   recipient: string;
   timezone: string;
   dateLabel: string;
   viewerRole: "owner" | "caregiver" | "viewer";
   members: { id: string; name: string; initials: string; color: string }[];
+  caregivers: Caregiver[];
   schedules: CareSchedule[];
   occurrences: Occurrence[];
   timeline: TimelineEvent[];

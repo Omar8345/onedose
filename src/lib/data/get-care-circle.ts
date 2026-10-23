@@ -56,6 +56,10 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       .filter((membership) => membership.confirm)
       .map((membership) => [membership.userId, membership.userName.trim()]),
   );
+  const viewerMembership = circleMembers.rows.find((membership) => membership.userId === viewer.id);
+  if (!viewerMembership || viewerMembership.status !== "active" || !teamMemberNames.has(viewer.id)) {
+    throw new CareCircleAccessError();
+  }
   const person = (actorId: string) => actorId === viewer.id ? viewer.name : teamMemberNames.get(actorId) || "Caregiver";
   const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
@@ -107,14 +111,39 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     const name = person(membership.userId);
     return { id: membership.userId, name, initials: initials(name), color: (["coral", "sage", "amber"] as const)[index % 3] };
   });
+  const memberByUserId = new Map(circleMembers.rows.map((membership) => [membership.userId, membership]));
+  const viewerRole = circleMembers.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver";
+  const caregivers = viewerRole === "owner"
+    ? teamMemberships.memberships
+      .filter((membership) => membership.userId !== viewer.id || membership.confirm)
+      .flatMap((membership) => {
+        const member = memberByUserId.get(membership.userId);
+        const isActive = Boolean(membership.confirm && member?.status === "active");
+        if (!isActive && membership.confirm) return [];
+        const name = membership.userId === viewer.id
+          ? viewer.name
+          : membership.userName.trim() || membership.userEmail.trim() || "Caregiver";
+        return [{
+          membershipId: membership.$id,
+          userId: membership.userId,
+          name,
+          email: membership.userEmail,
+          role: (member?.role ?? (membership.roles.includes("owner") ? "owner" : "caregiver")) as "owner" | "caregiver" | "viewer",
+          status: membership.confirm ? "active" as const : "pending" as const,
+        }];
+      })
+      .sort((left, right) => Number(right.status === "active") - Number(left.status === "active") || left.name.localeCompare(right.name))
+    : [];
 
   return {
     id: circle.$id,
+    teamId: circle.teamId,
     recipient: circle.name || `${recipient?.displayName ?? "Care"} circle`,
     timezone: circle.timezone,
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
-    viewerRole: circleMembers.rows.find((membership) => membership.userId === viewer.id)?.role ?? "caregiver",
+    viewerRole,
     members,
+    caregivers,
     schedules: schedules.rows.map((schedule) => ({
       id: schedule.$id,
       title: schedule.title,

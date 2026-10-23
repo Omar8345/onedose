@@ -2,6 +2,7 @@ import type { CareCircle } from "@/lib/types";
 
 export const demoCircle: CareCircle = {
   id: "demo_circle_nora",
+  teamId: "demo_team",
   viewerRole: "owner",
   recipient: "Nora’s care",
   timezone: "Asia/Dubai · UTC+4",
@@ -10,6 +11,11 @@ export const demoCircle: CareCircle = {
     { id: "demo-omar", name: "Omar", initials: "OM", color: "coral" },
     { id: "demo-maya", name: "Maya", initials: "MC", color: "sage" },
     { id: "demo-sam", name: "Sam", initials: "SK", color: "amber" },
+  ],
+  caregivers: [
+    { membershipId: "membership-omar", userId: "demo-omar", name: "Omar", email: "omar@example.com", role: "owner", status: "active" },
+    { membershipId: "membership-maya", userId: "demo-maya", name: "Maya", email: "maya@example.com", role: "caregiver", status: "active" },
+    { membershipId: "membership-sam", userId: "demo-sam", name: "Sam", email: "sam@example.com", role: "caregiver", status: "active" },
   ],
   schedules: [
     { id: "schedule-morning", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", active: true },
