@@ -1,9 +1,9 @@
 # OneDose reminder function
 
 This Appwrite Function runs once per hour. It creates missing daily occurrences,
-sends one due reminder, and sends one overdue escalation after the configured
-grace period. `notification_deliveries` prevents duplicate messages when the
-function is retried.
+sends the due reminder to the first available contact, and escalates to every
+available caregiver after the circle's configured grace period.
+`notification_deliveries` prevents duplicate messages when the function is retried.
 
 ## Appwrite settings
 
@@ -15,7 +15,7 @@ function is retried.
 - Variables:
   - `DATABASE_ID=6ad61f7e003988501658`
   - `APP_URL=https://onedose.appwrite.network`
-  - `OVERDUE_MINUTES=60`
+  - `OVERDUE_MINUTES=60` (fallback for circles without saved settings)
   - `REMINDER_DRY_RUN=false`
 
 Configure an email provider under Appwrite **Messaging → Providers** before

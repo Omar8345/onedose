@@ -3,6 +3,7 @@
 import {
   Activity,
   ArrowRight,
+  BellRing,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -126,6 +127,8 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           Channel.tablesdb(databaseId).table(TABLES.events).row(),
           Channel.tablesdb(databaseId).table(TABLES.schedules).row(),
           Channel.tablesdb(databaseId).table(TABLES.members).row(),
+          Channel.tablesdb(databaseId).table(TABLES.caregiverPreferences).row(),
+          Channel.tablesdb(databaseId).table(TABLES.circleSettings).row(),
         ];
         subscription = await realtime.subscribe(channels, (event) => {
           const changed = event.payload as { circleId?: string };
@@ -268,11 +271,9 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
               Daily actions
             </NavButton>
           ) : null}
-          {circle.viewerRole === "owner" ? (
-            <NavButton active={view === "caregivers"} onClick={() => setView("caregivers")} icon={<UsersRound size={18} />}>
-              Caregivers
-            </NavButton>
-          ) : null}
+          <NavButton active={view === "caregivers"} onClick={() => setView("caregivers")} icon={<UsersRound size={18} />}>
+            Caregivers
+          </NavButton>
           {circle.viewerRole === "owner" ? (
             <NavButton onClick={() => setInviteOpen(true)} icon={<UserPlus size={18} />}>
               Invite caregiver
@@ -350,11 +351,9 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             <CalendarClock size={19} /><span>Actions</span>
           </button>
         ) : null}
-        {circle.viewerRole === "owner" ? (
-          <button className={view === "caregivers" ? "is-active" : ""} onClick={() => setView("caregivers")}>
-            <UsersRound size={19} /><span>People</span>
-          </button>
-        ) : null}
+        <button className={view === "caregivers" ? "is-active" : ""} onClick={() => setView("caregivers")}>
+          <UsersRound size={19} /><span>People</span>
+        </button>
         {circle.viewerRole === "owner" ? (
           <button onClick={() => setInviteOpen(true)}>
             <UserPlus size={19} /><span>Invite</span>
@@ -394,6 +393,50 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
   const [revoking, setRevoking] = useState<string | null>(null);
   const [caregiverToRevoke, setCaregiverToRevoke] = useState<CareCircle["caregivers"][number] | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [availability, setAvailability] = useState(circle.viewerAvailability);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const [primaryUserId, setPrimaryUserId] = useState(circle.alertSettings.primaryUserId);
+  const [escalationMinutes, setEscalationMinutes] = useState(circle.alertSettings.escalationMinutes);
+  const [savingRules, setSavingRules] = useState(false);
+
+  async function changeAvailability(next: CareCircle["viewerAvailability"]) {
+    setSavingAvailability(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/circle/availability", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ availability: next }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Availability could not be updated.");
+      setAvailability(next);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Availability could not be updated.");
+    } finally {
+      setSavingAvailability(false);
+    }
+  }
+
+  async function saveAlertRules() {
+    setSavingRules(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/circle/alert-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ primaryUserId, escalationMinutes }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Alert rules could not be updated.");
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Alert rules could not be updated.");
+    } finally {
+      setSavingRules(false);
+    }
+  }
 
   async function revoke() {
     if (!caregiverToRevoke) return;
@@ -422,16 +465,48 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
         <div>
           <span className="eyebrow">Care circle</span>
           <h1>Caregivers</h1>
-          <p>Control who can view and record care for {circle.recipient}.</p>
+          <p>{circle.viewerRole === "owner" ? `Control who can view and record care for ${circle.recipient}.` : `Manage when you receive alerts for ${circle.recipient}.`}</p>
         </div>
-        <span className="management-badge"><ShieldCheck size={15} /> Owner controls</span>
+        {circle.viewerRole === "owner" ? (
+          <div className="caregiver-overview">
+            <div><strong>{active.length}</strong><span>active</span></div>
+            <div><strong>{pending.length}</strong><span>pending</span></div>
+          </div>
+        ) : null}
       </div>
 
       {errorMessage ? <p className="form-error caregivers-error" role="alert">{errorMessage}</p> : null}
 
-      <section className="caregiver-section">
+      <section className="caregiver-section availability-panel">
+        <div>
+          <span className="eyebrow">Your alerts</span>
+          <h2>Availability</h2>
+          <p>Unavailable caregivers stay in the circle but do not receive due or overdue alerts.</p>
+        </div>
+        <div className="availability-actions" aria-label="Your availability">
+          <button className={availability === "available" ? "is-selected" : ""} type="button" disabled={savingAvailability} onClick={() => changeAvailability("available")}><CheckCircle2 size={17} /> Available</button>
+          <button className={availability === "unavailable" ? "is-selected is-unavailable" : ""} type="button" disabled={savingAvailability} onClick={() => changeAvailability("unavailable")}><X size={17} /> Unavailable</button>
+        </div>
+      </section>
+
+      {circle.viewerRole === "owner" ? (
+        <section className="caregiver-section escalation-panel">
+          <div className="section-heading">
+            <div><span className="eyebrow">Alert sequence</span><h2>Escalation rules</h2></div>
+            <BellRing size={21} />
+          </div>
+          <p className="panel-copy">The first contact receives the due reminder. If no outcome is recorded, every available caregiver receives the escalation.</p>
+          <div className="alert-rule-fields">
+            <label><span>First contact</span><select value={primaryUserId} onChange={(event) => setPrimaryUserId(event.target.value)}>{active.map((caregiver) => <option key={caregiver.userId} value={caregiver.userId}>{caregiver.name}{caregiver.availability === "unavailable" ? " (unavailable)" : ""}</option>)}</select></label>
+            <label><span>Escalate after</span><select value={escalationMinutes} onChange={(event) => setEscalationMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={60}>1 hour</option><option value={120}>2 hours</option><option value={240}>4 hours</option></select></label>
+            <button className="primary-button" type="button" disabled={savingRules || !primaryUserId} onClick={saveAlertRules}>{savingRules ? "Saving…" : "Save rules"}</button>
+          </div>
+        </section>
+      ) : null}
+
+      {circle.viewerRole === "owner" ? <section className="caregiver-section">
         <div className="section-heading">
-          <div><span className="eyebrow">Access granted</span><h2>Active caregivers</h2></div>
+          <div><span className="eyebrow">Access granted</span><h2>Active caregivers</h2><p className="section-description">People who can currently view the circle and record outcomes.</p></div>
           <span className="section-count">{active.length}</span>
         </div>
         <div className="caregiver-list">
@@ -446,11 +521,11 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
           ))}
           {!active.length ? <p className="schedule-empty">No active caregivers yet.</p> : null}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="caregiver-section">
+      {circle.viewerRole === "owner" ? <section className="caregiver-section">
         <div className="section-heading">
-          <div><span className="eyebrow">Awaiting acceptance</span><h2>Pending invitations</h2></div>
+          <div><span className="eyebrow">Awaiting acceptance</span><h2>Pending invitations</h2><p className="section-description">Invitations that have not been accepted yet.</p></div>
           <span className="section-count">{pending.length}</span>
         </div>
         <div className="caregiver-list">
@@ -465,7 +540,7 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
           ))}
           {!pending.length ? <p className="schedule-empty">No pending invitations.</p> : null}
         </div>
-      </section>
+      </section> : null}
       {caregiverToRevoke ? (
         <RevokeCaregiverDialog
           caregiver={caregiverToRevoke}
@@ -559,6 +634,7 @@ function CaregiverCard({
           <span className={`status-pill status-pill--${caregiver.status === "pending" ? "upcoming" : "completed"}`}>
             {caregiver.status === "pending" ? "Pending" : caregiver.role === "owner" ? "Owner" : "Active"}
           </span>
+          {caregiver.status === "active" ? <span className={`availability-chip availability-chip--${caregiver.availability}`}>{caregiver.availability === "available" ? "Available" : "Unavailable"}</span> : null}
         </div>
         <p>{caregiver.email}</p>
       </div>

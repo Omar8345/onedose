@@ -9,6 +9,8 @@ export const TABLES = {
   schedules: "schedules",
   occurrences: "occurrences",
   notifications: "notification_deliveries",
+  caregiverPreferences: "caregiver_preferences",
+  circleSettings: "care_circle_settings",
 };
 
 const PAGE_SIZE = 100;
@@ -241,12 +243,25 @@ async function finishDelivery(tables, databaseId, deliveryId, data) {
 
 async function processOccurrence({ tables, messaging, databaseId, circle, confirmedUserIds, schedules, occurrence, now, overdueMinutes, appUrl, dryRun }) {
   const ageMs = now.getTime() - Date.parse(occurrence.dueAt);
-  const kind = ageMs >= overdueMinutes * 60_000 ? "overdue" : "due";
-  const members = await listAllRows(tables, databaseId, TABLES.members, [
-    Query.equal("circleId", [circle.$id]),
-    Query.equal("status", ["active"]),
+  const [members, preferences, settingsRows] = await Promise.all([
+    listAllRows(tables, databaseId, TABLES.members, [
+      Query.equal("circleId", [circle.$id]),
+      Query.equal("status", ["active"]),
+    ]),
+    listAllRows(tables, databaseId, TABLES.caregiverPreferences, [Query.equal("circleId", [circle.$id])]),
+    listAllRows(tables, databaseId, TABLES.circleSettings, [Query.equal("circleId", [circle.$id])]),
   ]);
-  const userIds = [...new Set(members.map((member) => member.userId).filter((userId) => userId && confirmedUserIds.has(userId)))];
+  const settings = settingsRows[0];
+  const delayMinutes = settings?.escalationMinutes ?? overdueMinutes;
+  const kind = ageMs >= delayMinutes * 60_000 ? "overdue" : "due";
+  const unavailable = new Set(preferences.filter((item) => item.availability === "unavailable").map((item) => item.userId));
+  const availableUserIds = [...new Set(members
+    .map((member) => member.userId)
+    .filter((userId) => userId && confirmedUserIds.has(userId) && !unavailable.has(userId)))];
+  const primaryUserId = settings?.primaryUserId;
+  const userIds = kind === "due" && primaryUserId && availableUserIds.includes(primaryUserId)
+    ? [primaryUserId]
+    : availableUserIds;
   const claim = await claimDelivery(tables, databaseId, occurrence, kind, userIds.length, now);
   if (!claim.claimed) return { kind, result: "duplicate" };
 

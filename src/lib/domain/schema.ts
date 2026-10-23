@@ -10,6 +10,8 @@ export const TABLES = {
   events: "audit_events",
   commands: "command_receipts",
   notifications: "notification_deliveries",
+  caregiverPreferences: "caregiver_preferences",
+  circleSettings: "care_circle_settings",
 } as const;
 
 export const completionInputSchema = z.object({
@@ -43,6 +45,20 @@ export type MemberRow = Models.Row & {
   role: "owner" | "caregiver" | "viewer";
   status: "active" | "revoked";
   lastMutationAt: string | null;
+};
+
+export type CaregiverPreferenceRow = Models.Row & {
+  circleId: string;
+  userId: string;
+  availability: "available" | "unavailable";
+  updatedAt: string;
+};
+
+export type CircleSettingsRow = Models.Row & {
+  circleId: string;
+  primaryUserId: string;
+  escalationMinutes: number;
+  updatedAt: string;
 };
 
 export type CommandReceiptRow = Models.Row & {

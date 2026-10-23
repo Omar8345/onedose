@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import nextEnv from "@next/env";
-import { AppwriteException, Client, TablesDB, Teams } from "node-appwrite";
+import { AppwriteException, Client, Query, TablesDB, Teams } from "node-appwrite";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -104,6 +104,24 @@ async function ensureRow(tableId, rowId, data, options = {}) {
   return created;
 }
 
+async function ensureOccurrence(rowId, data) {
+  try {
+    return await ensureRow("occurrences", rowId, data, { mutableKeys: ["status", "version"] });
+  } catch (error) {
+    if (!(error instanceof AppwriteException) || error.code !== 409) throw error;
+    const existing = await tables.listRows({
+      databaseId,
+      tableId: "occurrences",
+      queries: [Query.equal("scheduleId", [data.scheduleId]), Query.equal("dueAt", [data.dueAt]), Query.limit(1)],
+      total: false,
+    });
+    if (!existing.rows[0]) throw error;
+    assertExpected("occurrences", existing.rows[0].$id, existing.rows[0], data, ["status", "version"]);
+    console.log(`✓ occurrences/${existing.rows[0].$id} already matches today's schedule`);
+    return existing.rows[0];
+  }
+}
+
 const occurrence = dubaiOccurrence();
 
 console.log(`Seeding synthetic OneDose data in database ${databaseId}...`);
@@ -137,6 +155,27 @@ await ensureRow("circle_members", memberId(ids.maya), {
   status: "active",
 });
 
+await ensureRow("caregiver_preferences", `pref_${stableHash(`${ids.circle}:${ids.omar}`).slice(0, 30)}`, {
+  circleId: ids.circle,
+  userId: ids.omar,
+  availability: "available",
+  updatedAt: new Date().toISOString(),
+}, { mutableKeys: ["availability", "updatedAt"] });
+
+await ensureRow("caregiver_preferences", `pref_${stableHash(`${ids.circle}:${ids.maya}`).slice(0, 30)}`, {
+  circleId: ids.circle,
+  userId: ids.maya,
+  availability: "available",
+  updatedAt: new Date().toISOString(),
+}, { mutableKeys: ["availability", "updatedAt"] });
+
+await ensureRow("care_circle_settings", `set_${stableHash(ids.circle).slice(0, 30)}`, {
+  circleId: ids.circle,
+  primaryUserId: ids.omar,
+  escalationMinutes: 60,
+  updatedAt: new Date().toISOString(),
+}, { mutableKeys: ["primaryUserId", "escalationMinutes", "updatedAt"] });
+
 await ensureRow("care_recipients", ids.recipient, {
   circleId: ids.circle,
   displayName: "Nora",
@@ -153,14 +192,14 @@ await ensureRow("schedules", ids.schedule, {
   active: true,
 });
 
-await ensureRow("occurrences", occurrence.id, {
+const seededOccurrence = await ensureOccurrence(occurrence.id, {
   circleId: ids.circle,
   teamId: ids.team,
   scheduleId: ids.schedule,
   dueAt: occurrence.dueAt,
   status: "due",
   version: 0,
-}, { mutableKeys: ["status", "version"] });
+});
 
-console.log(`OneDose demo data is ready. Due occurrence: ${occurrence.id}`);
+console.log(`OneDose demo data is ready. Due occurrence: ${seededOccurrence.$id}`);
 console.log("These rows are synthetic and server-only until Appwrite Auth and Teams onboarding is connected.");

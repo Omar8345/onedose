@@ -38,6 +38,7 @@ export type Caregiver = {
   email: string;
   role: "owner" | "caregiver" | "viewer";
   status: "active" | "pending";
+  availability: "available" | "unavailable";
 };
 
 export type CareCircle = {
@@ -47,7 +48,9 @@ export type CareCircle = {
   timezone: string;
   dateLabel: string;
   viewerRole: "owner" | "caregiver" | "viewer";
-  members: { id: string; name: string; initials: string; color: string }[];
+  viewerAvailability: "available" | "unavailable";
+  alertSettings: { primaryUserId: string; escalationMinutes: number };
+  members: { id: string; name: string; initials: string; color: string; availability: "available" | "unavailable" }[];
   caregivers: Caregiver[];
   schedules: CareSchedule[];
   occurrences: Occurrence[];

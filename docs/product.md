@@ -30,6 +30,9 @@ The demonstration uses synthetic people and schedules.
 6. Appwrite commits the occurrence state and audit event together.
 7. Every connected caregiver receives the resulting state.
 8. A later correction adds history instead of rewriting it.
+9. Caregivers can pause alerts while unavailable without losing circle access.
+10. The owner chooses a first contact and an escalation delay; overdue alerts
+    then fan out to all available caregivers.
 
 ## Safety invariants
 
@@ -41,6 +44,8 @@ The demonstration uses synthetic people and schedules.
 - The client never presents an unconfirmed write as saved.
 - Times are stored in UTC and shown in the care circle's selected timezone.
 - The server, rather than the browser, decides whether a completion wins.
+- Unavailable caregivers never receive due or overdue notifications.
+- Notification retries do not create duplicate deliveries.
 
 ## Proof scenario
 

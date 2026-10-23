@@ -23,6 +23,8 @@ The current foundation includes:
 - passwordless Email OTP authentication and private Appwrite Teams
 - authenticated Appwrite Realtime updates across caregiver sessions
 - secure caregiver invitations with Appwrite Team acceptance
+- caregiver availability that suppresses alerts without removing access
+- owner-configured first-contact and overdue escalation rules
 - transactional onboarding for a user's first circle and daily action
 - owner-managed daily actions with pause and resume controls
 - an hourly Appwrite Function for daily generation, due reminders, and overdue escalation
@@ -81,15 +83,16 @@ Run the live concurrency proof after provisioning and seeding:
 npm run test:race
 ```
 
-Verify reminder idempotency after provisioning the notification table:
+Verify reminder routing and idempotency after provisioning:
 
 ```bash
 npm run test:reminders
 ```
 
 The reminder proof creates one due item and one overdue item, runs competing
-sweeps, and verifies that each notification level receives exactly one delivery
-record. It runs in dry-run mode and removes its synthetic rows afterward.
+sweeps, and verifies that the first contact gets the due reminder while every
+available caregiver gets the escalation. An unavailable caregiver is excluded.
+It runs in dry-run mode and removes its synthetic rows afterward.
 
 Verify that outsiders are rejected and retries remain idempotent:
 

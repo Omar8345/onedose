@@ -87,6 +87,20 @@ export async function createCareCircle({
       lastMutationAt: null,
     }, permissions: teamRead, transactionId: transaction.$id });
 
+    await tables.createRow({ databaseId, tableId: TABLES.caregiverPreferences, rowId: stableRowId("pref", `${circleId}:${userId}`), data: {
+      circleId,
+      userId,
+      availability: "available",
+      updatedAt: new Date().toISOString(),
+    }, permissions: teamRead, transactionId: transaction.$id });
+
+    await tables.createRow({ databaseId, tableId: TABLES.circleSettings, rowId: stableRowId("set", circleId), data: {
+      circleId,
+      primaryUserId: userId,
+      escalationMinutes: 60,
+      updatedAt: new Date().toISOString(),
+    }, permissions: teamRead, transactionId: transaction.$id });
+
     await tables.createRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId, data: {
       circleId,
       displayName: input.recipientName,

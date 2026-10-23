@@ -178,6 +178,31 @@ const schema = [
       index("by_status_claimed", "key", ["status", "claimedAt"]),
     ],
   },
+  {
+    id: "caregiver_preferences",
+    name: "Caregiver preferences",
+    columns: [
+      varchar("circleId", 36),
+      varchar("userId", 36),
+      enumeration("availability", ["available", "unavailable"]),
+      datetime("updatedAt"),
+    ],
+    indexes: [
+      index("uniq_circle_user", "unique", ["circleId", "userId"]),
+      index("by_circle_availability", "key", ["circleId", "availability"]),
+    ],
+  },
+  {
+    id: "care_circle_settings",
+    name: "Care circle settings",
+    columns: [
+      varchar("circleId", 36),
+      varchar("primaryUserId", 36),
+      integer("escalationMinutes"),
+      datetime("updatedAt"),
+    ],
+    indexes: [index("uniq_circle", "unique", ["circleId"])],
+  },
 ];
 
 function isMissing(error) {
