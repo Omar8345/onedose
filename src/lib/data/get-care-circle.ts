@@ -25,6 +25,7 @@ type EventRow = Models.Row & {
   outcome: string;
   note: string | null;
   occurredAt: string;
+  supersedesEventId: string | null;
 };
 
 function initials(name: string) {
@@ -67,7 +68,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       detail: schedule.instruction ?? "Scheduled care action",
       instruction: schedule.instruction ?? "Record the outcome when complete.",
       status: recorded
-        ? "completed"
+        ? row.status
         : Date.parse(row.dueAt) > Date.now()
           ? "upcoming"
           : Date.now() - Date.parse(row.dueAt) >= 60 * 60_000
@@ -75,21 +76,27 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
             : "due",
       completedBy: row.completedBy ? person(row.completedBy) : undefined,
       completedAt: row.completedAt ? formatTime(row.completedAt, schedule.timezone) : undefined,
+      activeEventId: row.activeEventId ?? undefined,
     }];
   });
 
+  const eventById = new Map(events.rows.map((event) => [event.$id, event]));
   const timeline: TimelineEvent[] = events.rows.map((event) => {
     const occurrence = occurrenceById.get(event.occurrenceId);
     const schedule = occurrence ? scheduleById.get(occurrence.scheduleId) : undefined;
     const corrected = event.type === "outcome_corrected";
     const actor = person(event.actorId);
+    const previousEvent = event.supersedesEventId ? eventById.get(event.supersedesEventId) : undefined;
+    const correctionDetail = previousEvent
+      ? `${actor} changed ${previousEvent.outcome} to ${event.outcome}${event.note ? `: ${event.note}` : ""}`
+      : `${actor} corrected the outcome to ${event.outcome}${event.note ? `: ${event.note}` : ""}`;
     return {
       id: event.$id,
       dateKey: localDateKey(new Date(event.occurredAt), circle.timezone),
       dateLabel: localDateLabel(new Date(event.occurredAt), circle.timezone),
       time: formatTime(event.occurredAt, circle.timezone),
-      title: corrected ? "Outcome corrected" : `${schedule?.title ?? "Care action"} recorded`,
-      detail: event.note ? `${actor}: ${event.note}` : `${actor} recorded ${event.outcome}`,
+      title: corrected ? `${schedule?.title ?? "Care action"} corrected` : `${schedule?.title ?? "Care action"} recorded`,
+      detail: corrected ? correctionDetail : event.note ? `${actor}: ${event.note}` : `${actor} recorded ${event.outcome}`,
       tone: corrected ? "attention" : "success",
     };
   });

@@ -140,6 +140,9 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .status-pill--overdue { background: #a64535; color: white; }
 .status-pill--upcoming { background: #edf0ec; color: #69736d; }
 .status-pill--completed { background: var(--sage-soft); color: #2f6b52; }
+.status-pill--skipped { background: #edf0ec; color: #59645e; }
+.status-pill--refused { background: var(--coral-soft); color: #9b4436; }
+.status-pill--unavailable { background: var(--amber-soft); color: #8a6327; }
 .focus-card .status-pill--due { background: #f5cabb; color: #723528; }
 .focus-card .status-pill--overdue { background: #fff1eb; color: #8f3023; }
 .focus-card--overdue { background: #b84d3d; }
@@ -160,6 +163,9 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .schedule-marker { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 1px solid #cbd1ca; color: white; position: relative; }
 .schedule-marker i { width: 7px; height: 7px; background: #aab4ae; border-radius: 50%; }
 .schedule-row--completed .schedule-marker { background: var(--sage); border-color: var(--sage); }
+.schedule-row--skipped .schedule-marker { background: #88928d; border-color: #88928d; }
+.schedule-row--refused .schedule-marker { background: var(--coral); border-color: var(--coral); }
+.schedule-row--unavailable .schedule-marker { background: var(--amber); border-color: var(--amber); }
 .schedule-row--due .schedule-marker { border-color: var(--coral); box-shadow: 0 0 0 5px var(--coral-soft); }
 .schedule-row--overdue .schedule-marker { border-color: var(--coral); }
 .schedule-row--overdue { box-shadow: none; }
@@ -224,7 +230,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15, 27, 25, .66); backdrop-filter: blur(7px); display: grid; place-items: center; padding: 20px; animation: fade-in .2s ease both; }
 .dialog-backdrop--closing { animation: fade-out .2s ease both; }
-.dialog { width: min(540px, 100%); background: var(--surface); border-radius: 24px; padding: 34px; box-shadow: 0 30px 90px rgba(0,0,0,.3); position: relative; animation: rise-in .25s cubic-bezier(.2,.8,.2,1) both; }
+.dialog { width: min(580px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; background: var(--surface); border-radius: 24px; padding: 34px; box-shadow: 0 30px 90px rgba(0,0,0,.3); position: relative; animation: rise-in .25s cubic-bezier(.2,.8,.2,1) both; }
 .dialog--closing { animation: fall-out .2s ease both; }
 .dialog--race { border-top: 7px solid var(--coral); }
 .dialog-close { position: absolute; top: 18px; right: 18px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; transition: background-color .18s ease, border-color .18s ease; }
@@ -234,6 +240,28 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .detail-strip { display: flex; gap: 12px; align-items: center; padding: 14px; background: #f1f1ea; border-radius: 12px; margin: 22px 0; }
 .detail-strip span { display: flex; flex-direction: column; }
 .detail-strip small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.correction-note { display: flex; align-items: center; gap: 11px; margin: -8px 0 20px; padding: 13px 14px; border: 1px solid #e5d39d; border-radius: 12px; background: var(--amber-soft); color: #795c27; }
+.correction-note > span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.correction-note strong { font-size: 12px; }
+.correction-note small { display: block; color: #836d45; font-size: 11px; line-height: 1.4; }
+.outcome-picker { border: 0; padding: 0; margin: 0 0 20px; }
+.outcome-picker legend { font-weight: 600; margin-bottom: 8px; }
+.outcome-picker > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.outcome-choice { min-height: 72px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: white; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 11px; color: var(--muted); cursor: pointer; transition: border-color .18s ease, background-color .18s ease, color .18s ease; }
+.outcome-choice:hover { border-color: #a9b9b0; }
+.outcome-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.outcome-choice-icon { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: #edf0ec; color: #66716b; }
+.outcome-choice-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.outcome-choice-copy strong { display: block; color: var(--ink); font-size: 13px; line-height: 1.15; }
+.outcome-choice-copy small { display: block; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.outcome-choice--completed.is-selected { border-color: var(--sage); background: var(--sage-soft); }
+.outcome-choice--completed.is-selected .outcome-choice-icon { background: var(--sage); color: white; }
+.outcome-choice--skipped.is-selected { border-color: #98a39d; background: #edf0ec; }
+.outcome-choice--skipped.is-selected .outcome-choice-icon { background: #7f8b84; color: white; }
+.outcome-choice--refused.is-selected { border-color: var(--coral); background: var(--coral-soft); }
+.outcome-choice--refused.is-selected .outcome-choice-icon { background: var(--coral); color: white; }
+.outcome-choice--unavailable.is-selected { border-color: var(--amber); background: var(--amber-soft); }
+.outcome-choice--unavailable.is-selected .outcome-choice-icon { background: var(--amber); color: white; }
 .note-field span { display: block; font-weight: 600; margin-bottom: 8px; }
 .note-field textarea { width: 100%; min-height: 100px; resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 13px; background: white; color: var(--ink); caret-color: var(--sage); transition: border-color .24s ease, box-shadow .24s ease, background-color .24s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
 .note-field textarea:focus { outline: 0; border-color: var(--sage); box-shadow: 0 0 0 4px rgba(93, 198, 154,.2), 0 6px 16px rgba(57, 105, 87, .08); background: #fffefa; transform: translateY(-1px); }

@@ -37,6 +37,7 @@ function fingerprint(input: CompletionInput) {
     outcome: input.outcome,
     note: input.note ?? "",
     occurredAt: input.occurredAt,
+    correctsEventId: input.correctsEventId ?? "",
   }));
 }
 
@@ -108,14 +109,21 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       throw new CompletionForbiddenError();
     }
 
-    if (occurrence.status !== "due") {
+    const isCorrection = Boolean(input.correctsEventId);
+    const isCurrentCorrection = isCorrection
+      && occurrence.status !== "due"
+      && occurrence.activeEventId === input.correctsEventId;
+
+    if ((!isCorrection && occurrence.status !== "due") || (isCorrection && !isCurrentCorrection)) {
       await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
       return { kind: "already_recorded", occurrence };
     }
 
     // Every contender writes the same immutable event row. Its unique row ID
     // makes Appwrite reject all but one concurrent completion transaction.
-    const eventId = stableRowId("evt", occurrence.$id);
+    const eventId = isCorrection
+      ? stableRowId("evt", `${occurrence.$id}:correct:${input.correctsEventId}`)
+      : stableRowId("evt", occurrence.$id);
     const now = new Date().toISOString();
 
     // Touching membership makes a concurrent revocation conflict with this commit.
@@ -150,12 +158,12 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
         circleId: occurrence.circleId,
         occurrenceId: occurrence.$id,
         actorId: input.actorId,
-        type: "outcome_recorded",
+        type: isCorrection ? "outcome_corrected" : "outcome_recorded",
         outcome: input.outcome,
         note: input.note ?? null,
         occurredAt: input.occurredAt,
         recordedAt: now,
-        supersedesEventId: null,
+        supersedesEventId: input.correctsEventId ?? null,
       },
       permissions: [Permission.read(Role.team(occurrence.teamId))],
       transactionId: transaction.$id,
@@ -185,7 +193,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       rowId: occurrence.$id,
     });
 
-    return { kind: "accepted", occurrence: committed, eventId };
+    return { kind: isCorrection ? "corrected" : "accepted", occurrence: committed, eventId };
   } catch (error) {
     await tables
       .updateTransaction({ transactionId: transaction.$id, rollback: true })

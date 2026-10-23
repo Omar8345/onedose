@@ -98,7 +98,9 @@ npm run test:safety
 
 The safety proof rejects a non-member completion, accepts one authorized
 completion, replays an identical request without another write, and rejects a
-changed payload that reuses the same idempotency key.
+changed payload that reuses the same idempotency key. It then races 25
+corrections against the winning event, accepts exactly one, preserves both
+audit entries, and rejects a stale correction without overwriting the winner.
 
 The production worker lives in [`functions/reminders`](functions/reminders).
 Deploy that folder as an Appwrite Function with a 60-minute interval, grant

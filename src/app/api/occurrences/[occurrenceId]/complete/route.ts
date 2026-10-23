@@ -10,7 +10,9 @@ import {
 
 const bodySchema = z.object({
   idempotencyKey: z.string().min(16).max(200),
+  outcome: z.enum(["completed", "skipped", "refused", "unavailable"]),
   note: z.string().trim().max(500).optional(),
+  correctsEventId: z.string().min(1).max(36).optional(),
 });
 
 export async function POST(
@@ -27,9 +29,10 @@ export async function POST(
       occurrenceId,
       actorId: user.$id,
       idempotencyKey: body.idempotencyKey,
-      outcome: "completed",
+      outcome: body.outcome,
       note: body.note,
       occurredAt: new Date().toISOString(),
+      correctsEventId: body.correctsEventId,
     });
 
     return Response.json({
@@ -37,8 +40,10 @@ export async function POST(
       occurrence: {
         id: result.occurrence.$id,
         status: result.occurrence.status,
+        outcome: result.occurrence.outcome,
         completedBy: result.occurrence.completedBy,
         completedAt: result.occurrence.completedAt,
+        activeEventId: result.occurrence.activeEventId,
       },
     });
   } catch (error) {

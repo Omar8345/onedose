@@ -1,4 +1,5 @@
-export type OccurrenceStatus = "overdue" | "due" | "upcoming" | "completed";
+export type RecordedOutcome = "completed" | "skipped" | "refused" | "unavailable";
+export type OccurrenceStatus = "overdue" | "due" | "upcoming" | RecordedOutcome;
 
 export type Occurrence = {
   id: string;
@@ -9,6 +10,7 @@ export type Occurrence = {
   status: OccurrenceStatus;
   completedBy?: string;
   completedAt?: string;
+  activeEventId?: string;
 };
 
 export type TimelineEvent = {

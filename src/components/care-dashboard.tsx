@@ -23,21 +23,41 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { createRealtime } from "@/lib/appwrite/client";
 import { TABLES } from "@/lib/domain/schema";
-import type { CareCircle, CareSchedule, Occurrence } from "@/lib/types";
+import type { CareCircle, CareSchedule, Occurrence, RecordedOutcome } from "@/lib/types";
 
 type View = "today" | "handoff" | "schedules";
 type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
 type LiveStatus = "connecting" | "live" | "reconnecting" | "offline";
 
 type CompletionResponse = {
-  kind: "accepted" | "replayed" | "already_recorded";
+  kind: "accepted" | "corrected" | "replayed" | "already_recorded";
   occurrence: {
     id: string;
     status: string;
+    outcome: RecordedOutcome | null;
     completedBy: string | null;
     completedAt: string | null;
+    activeEventId: string | null;
   };
 };
+
+const OUTCOME_LABELS: Record<RecordedOutcome, string> = {
+  completed: "Completed",
+  skipped: "Skipped",
+  refused: "Refused",
+  unavailable: "Unavailable",
+};
+
+function isRecordedOutcome(value: Occurrence["status"]): value is RecordedOutcome {
+  return value === "completed" || value === "skipped" || value === "refused" || value === "unavailable";
+}
+
+function occurrenceStatusLabel(value: Occurrence["status"]) {
+  if (isRecordedOutcome(value)) return OUTCOME_LABELS[value];
+  if (value === "overdue") return "Overdue";
+  if (value === "due") return "Due now";
+  return "Upcoming";
+}
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CG";
@@ -48,6 +68,8 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [view, setView] = useState<View>("today");
   const [demoState, setDemoState] = useState<DemoState>("idle");
   const [selected, setSelected] = useState<Occurrence | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<RecordedOutcome>("completed");
+  const [correctionMode, setCorrectionMode] = useState(false);
   const [occurrenceOverrides, setOccurrenceOverrides] = useState<Record<string, Occurrence>>({});
   const [note, setNote] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
@@ -58,7 +80,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [isRefreshing, startRefresh] = useTransition();
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
-  const dueCount = occurrences.filter((item) => item.status === "due").length;
+  const dueCount = occurrences.filter((item) => item.status === "due" || item.status === "overdue").length;
   const liveLabel = liveStatus === "live"
     ? (isRefreshing ? "Syncing" : "Live updates")
     : liveStatus === "offline"
@@ -144,6 +166,8 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
+    setSelectedOutcome(isRecordedOutcome(occurrence.status) ? occurrence.status : "completed");
+    setCorrectionMode(Boolean(occurrence.activeEventId));
     setIdempotencyKey(crypto.randomUUID());
     setNote("");
     setErrorMessage("");
@@ -157,7 +181,12 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
       const response = await fetch(`/api/occurrences/${selected.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idempotencyKey, note: note || undefined }),
+        body: JSON.stringify({
+          idempotencyKey,
+          outcome: selectedOutcome,
+          note: note || undefined,
+          correctsEventId: selected.activeEventId,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "The outcome could not be recorded.");
@@ -170,9 +199,16 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         ? new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(result.occurrence.completedAt))
         : "Now";
 
-      const completed = { ...selected, status: "completed" as const, completedBy, completedAt };
-      setOccurrenceOverrides((items) => ({ ...items, [completed.id]: completed }));
-      setSelected(completed);
+      const recordedOutcome = result.occurrence.outcome ?? selectedOutcome;
+      const recorded: Occurrence = {
+        ...selected,
+        status: recordedOutcome,
+        completedBy,
+        completedAt,
+        activeEventId: result.occurrence.activeEventId ?? selected.activeEventId,
+      };
+      setOccurrenceOverrides((items) => ({ ...items, [recorded.id]: recorded }));
+      setSelected(recorded);
       setDemoState(result.kind === "already_recorded" ? "race" : "saved");
       startRefresh(() => router.refresh());
     } catch (error) {
@@ -184,6 +220,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const closeDialog = () => {
     setDemoState("idle");
     setSelected(null);
+    setCorrectionMode(false);
     setNote("");
     setIdempotencyKey("");
     setErrorMessage("");
@@ -314,8 +351,11 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           state={demoState}
           occurrence={selected}
           note={note}
+          outcome={selectedOutcome}
+          isCorrection={correctionMode}
           errorMessage={errorMessage}
           onNoteChange={setNote}
+          onOutcomeChange={setSelectedOutcome}
           onConfirm={confirmCompletion}
           onClose={closeDialog}
           circleName={circle.recipient}
@@ -594,7 +634,7 @@ function TodayView({
         <div>
           <span className="eyebrow">{circle.dateLabel}</span>
           <h1>Today</h1>
-          <p>{dueCount ? `${dueCount} action needs attention.` : "Everything due so far is recorded."}</p>
+          <p>{dueCount ? `${dueCount} ${dueCount === 1 ? "action needs" : "actions need"} attention.` : "Everything due so far is recorded."}</p>
         </div>
         <div className="timezone"><Clock3 size={15} /> {circle.timezone}</div>
       </div>
@@ -662,21 +702,22 @@ function TodayView({
 }
 
 function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () => void }) {
+  const recorded = isRecordedOutcome(item.status);
   return (
     <article className={`schedule-row schedule-row--${item.status}`}>
       <div className="schedule-time">{item.time}</div>
-      <div className="schedule-marker">{item.status === "completed" ? <Check size={15} /> : <i />}</div>
+      <div className="schedule-marker">{recorded ? <Check size={15} /> : <i />}</div>
       <div className="schedule-copy">
         <div className="schedule-title-line">
           <h3>{item.title}</h3>
           <span className={`status-pill status-pill--${item.status}`}>
-            {item.status === "completed" ? "Completed" : item.status === "overdue" ? "Overdue" : item.status === "due" ? "Due now" : "Upcoming"}
+            {occurrenceStatusLabel(item.status)}
           </span>
         </div>
         <p>{item.detail}</p>
         {item.completedBy ? <small>Recorded by {item.completedBy} · {item.completedAt}</small> : null}
       </div>
-      {item.status === "due" || item.status === "overdue" ? <button className="row-action" onClick={onComplete}>Record <ArrowRight size={15} /></button> : null}
+      {item.status !== "upcoming" ? <button className="row-action" onClick={onComplete}>{recorded ? "Correct" : "Record"} <ArrowRight size={15} /></button> : null}
     </article>
   );
 }
@@ -726,7 +767,7 @@ function HandoffView({ circle, occurrences }: { circle: CareCircle; occurrences:
         <aside className="handoff-summary">
           <span className="section-kicker">Shift summary</span>
           <h2>Nothing urgent to carry forward.</h2>
-          <p>{dueCount ? "The midday routine still needs an outcome." : "Every scheduled outcome is recorded."}</p>
+          <p>{dueCount ? `${dueCount} ${dueCount === 1 ? "action still needs" : "actions still need"} an outcome.` : "Every scheduled outcome is recorded."}</p>
           <div className="summary-stat"><strong>{dueCount}</strong><span>{dueCount === 1 ? "action due" : "actions due"}</span></div>
           <div className="summary-stat"><strong>{circle.members.length}</strong><span>caregivers synced</span></div>
         </aside>
@@ -739,8 +780,11 @@ function CompletionDialog({
   state,
   occurrence,
   note,
+  outcome,
+  isCorrection,
   errorMessage,
   onNoteChange,
+  onOutcomeChange,
   onConfirm,
   onClose,
   circleName,
@@ -748,8 +792,11 @@ function CompletionDialog({
   state: DemoState;
   occurrence: Occurrence;
   note: string;
+  outcome: RecordedOutcome;
+  isCorrection: boolean;
   errorMessage: string;
   onNoteChange: (value: string) => void;
+  onOutcomeChange: (value: RecordedOutcome) => void;
   onConfirm: () => void;
   onClose: () => void;
   circleName: string;
@@ -776,17 +823,40 @@ function CompletionDialog({
 
         {state === "confirm" ? (
           <>
-            <span className="section-kicker">Confirm outcome</span>
-            <h2 id="dialog-title">Record {occurrence.title.toLowerCase()}</h2>
+            <span className="section-kicker">{isCorrection ? "Correct outcome" : "Confirm outcome"}</span>
+            <h2 id="dialog-title">{isCorrection ? "Update" : "Record"} {occurrence.title.toLowerCase()}</h2>
             <p className="dialog-lead">{occurrence.instruction}</p>
             <div className="detail-strip"><Clock3 size={17} /><span><small>Scheduled</small><strong>{occurrence.time}</strong></span></div>
+            {isCorrection && isRecordedOutcome(occurrence.status) ? (
+              <div className="correction-note">
+                <ShieldCheck size={18} />
+                <span><strong>Currently {OUTCOME_LABELS[occurrence.status].toLowerCase()}</strong><small>This correction adds to the history instead of replacing it.</small></span>
+              </div>
+            ) : null}
+            <fieldset className="outcome-picker">
+              <legend>Outcome</legend>
+              <div>
+                {(Object.entries(OUTCOME_LABELS) as Array<[RecordedOutcome, string]>).map(([value, label]) => (
+                  <label key={value} className={`outcome-choice outcome-choice--${value} ${outcome === value ? "is-selected" : ""}`}>
+                    <input type="radio" name="outcome" value={value} checked={outcome === value} onChange={() => onOutcomeChange(value)} />
+                    <span className="outcome-choice-icon" aria-hidden="true">
+                      {value === "completed" ? <Check size={17} /> : value === "skipped" ? <ArrowRight size={17} /> : value === "refused" ? <X size={17} /> : <CircleAlert size={17} />}
+                    </span>
+                    <span className="outcome-choice-copy">
+                      <strong>{label}</strong>
+                      <small>{value === "completed" ? "Done as planned" : value === "skipped" ? "Not done this time" : value === "refused" ? "Person declined" : "Could not be done"}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <label className="note-field">
               <span>Optional handoff note</span>
               <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} placeholder="Anything the next caregiver should know?" />
             </label>
             <div className="dialog-actions">
               <button className="secondary-button" type="button" onClick={close}>Cancel</button>
-              <button className="primary-button" type="button" onClick={onConfirm}><Check size={18} /> Confirm completion</button>
+              <button className="primary-button" type="button" onClick={onConfirm}><Check size={18} /> {isCorrection ? "Save correction" : `Confirm ${OUTCOME_LABELS[outcome].toLowerCase()}`}</button>
             </div>
           </>
         ) : null}
@@ -804,9 +874,9 @@ function CompletionDialog({
           <div className="result-state">
             <span className="result-icon result-icon--success"><CheckCircle2 size={32} /></span>
             <span className="section-kicker">Recorded</span>
-            <h2 id="dialog-title">{occurrence.title} completed</h2>
+            <h2 id="dialog-title">{occurrence.title} {OUTCOME_LABELS[outcome].toLowerCase()}</h2>
             <p>Everyone in {circleName} now sees the same result.</p>
-            <div className="proof-row"><ShieldCheck size={19} /><span><strong>Update and history saved together</strong><small>One confirmed record for everyone in the care circle</small></span></div>
+            <div className="proof-row"><ShieldCheck size={19} /><span><strong>{isCorrection ? "Correction added without erasing history" : "Update and history saved together"}</strong><small>One confirmed record for everyone in the care circle</small></span></div>
           </div>
         ) : null}
 
@@ -814,8 +884,8 @@ function CompletionDialog({
           <div className="result-state">
             <span className="result-icon result-icon--protected"><ShieldCheck size={34} /></span>
             <span className="section-kicker section-kicker--coral">Duplicate prevented</span>
-            <h2 id="dialog-title">{occurrence.completedBy} already recorded this</h2>
-            <p>Another caregiver confirmed this update first. Your screen now shows the shared record instead of creating a duplicate.</p>
+            <h2 id="dialog-title">{occurrence.completedBy} already updated this</h2>
+            <p>Another caregiver saved an outcome first. Your screen now shows the shared record instead of overwriting it.</p>
           </div>
         ) : null}
 

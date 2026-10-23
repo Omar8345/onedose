@@ -80,16 +80,48 @@ try {
     "the same key with different input must be rejected",
   );
 
+  assert.equal(accepted.kind, "accepted");
+  if (accepted.kind !== "accepted") throw new Error("The initial outcome was not accepted.");
+
+  const correctionInputs = Array.from({ length: 25 }, (_, index) => ({
+    occurrenceId,
+    actorId: index % 2 === 0 ? "demo_omar" : "demo_maya",
+    idempotencyKey: `correction-${runId}-${index.toString().padStart(2, "0")}`,
+    outcome: (index % 2 === 0 ? "skipped" : "unavailable") as "skipped" | "unavailable",
+    note: `Concurrent correction ${index + 1}`,
+    occurredAt: new Date(Date.now() + 1_000).toISOString(),
+    correctsEventId: accepted.eventId,
+  }));
+  const correctionResults = await Promise.all(correctionInputs.map((value) => completeOccurrence(value)));
+  const correctedIndex = correctionResults.findIndex((result) => result.kind === "corrected");
+  assert.notEqual(correctedIndex, -1, "one correction must be accepted");
+  assert.equal(correctionResults.filter((result) => result.kind === "corrected").length, 1);
+  assert.equal(correctionResults.filter((result) => result.kind === "already_recorded").length, 24);
+
+  const corrected = correctionResults[correctedIndex];
+  if (corrected.kind !== "corrected") throw new Error("The correction winner was not found.");
+  const replayedCorrection = await completeOccurrence(correctionInputs[correctedIndex]);
+  assert.equal(replayedCorrection.kind, "replayed", "the winning correction must be safely replayable");
+
+  const staleCorrection = await completeOccurrence({
+    ...correctionInputs[0],
+    idempotencyKey: `stale-correction-${runId}`,
+  });
+  assert.equal(staleCorrection.kind, "already_recorded", "a stale screen must not overwrite the winning correction");
+
   const [occurrence, events, commands] = await Promise.all([
     tables.getRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }),
     relatedRows(TABLES.events),
     relatedRows(TABLES.commands),
   ]);
-  assert.equal(accepted.kind, "accepted");
   assert.equal(replayed.kind, "replayed");
-  assert.equal(occurrence.version, 1);
-  assert.equal(events.rows.length, 1);
-  assert.equal(commands.rows.length, 1);
+  assert.equal(occurrence.version, 2);
+  assert.equal(occurrence.activeEventId, corrected.eventId);
+  assert.equal(events.rows.length, 2);
+  assert.equal(commands.rows.length, 2);
+  const correctionEvent = events.rows.find((event) => event.$id === corrected.eventId);
+  assert.equal(correctionEvent?.type, "outcome_corrected");
+  assert.equal(correctionEvent?.supersedesEventId, accepted.eventId);
 
   console.log("OneDose access and retry proof passed");
   console.table({
@@ -97,6 +129,9 @@ try {
     firstAttempt: accepted.kind,
     identicalRetry: replayed.kind,
     changedRetryRejected: true,
+    concurrentCorrections: correctionResults.length,
+    acceptedCorrections: 1,
+    staleCorrectionRejected: true,
     auditEvents: events.rows.length,
     commandReceipts: commands.rows.length,
     finalVersion: occurrence.version,

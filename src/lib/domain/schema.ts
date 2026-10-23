@@ -19,6 +19,7 @@ export const completionInputSchema = z.object({
   outcome: z.enum(["completed", "skipped", "refused", "unavailable"]),
   note: z.string().trim().max(500).optional(),
   occurredAt: z.iso.datetime(),
+  correctsEventId: z.string().min(1).max(36).optional(),
 });
 
 export type CompletionInput = z.infer<typeof completionInputSchema>;
@@ -55,5 +56,6 @@ export type CommandReceiptRow = Models.Row & {
 
 export type CompletionResult =
   | { kind: "accepted"; occurrence: OccurrenceRow; eventId: string }
+  | { kind: "corrected"; occurrence: OccurrenceRow; eventId: string }
   | { kind: "replayed"; occurrence: OccurrenceRow; eventId: string }
   | { kind: "already_recorded"; occurrence: OccurrenceRow };
