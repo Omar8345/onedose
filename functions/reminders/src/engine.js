@@ -101,6 +101,7 @@ async function materializeCircle(tables, databaseId, circle, now) {
   const schedules = await listAllRows(tables, databaseId, TABLES.schedules, [
     Query.equal("circleId", [circle.$id]),
     Query.equal("active", [true]),
+    Query.isNull("archivedAt"),
   ]);
   let created = 0;
 
@@ -362,6 +363,7 @@ export async function runReminderSweep({
           schedules: await listAllRows(tables, databaseId, TABLES.schedules, [
             Query.equal("circleId", [circle.$id]),
             Query.equal("active", [true]),
+            Query.isNull("archivedAt"),
           ]),
           created: 0,
         }

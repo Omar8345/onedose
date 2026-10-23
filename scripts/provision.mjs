@@ -100,10 +100,12 @@ const schema = [
       varchar("timezone", 64),
       varchar("rrule", 500),
       boolean("active"),
+      datetime("archivedAt", false),
     ],
     indexes: [
       index("by_circle_active", "key", ["circleId", "active"]),
       index("by_recipient_active", "key", ["recipientId", "active"]),
+      index("by_circle_archive", "key", ["circleId", "archivedAt"]),
     ],
   },
   {
@@ -218,7 +220,36 @@ async function findTable(tableId) {
   }
 }
 
-async function verifyExisting(definition) {
+async function waitForColumn(tableId, key) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const column = await tables.getColumn({ databaseId, tableId, key });
+    if (column.status === "available") return;
+    if (column.status === "failed") throw new Error(`Column ${tableId}.${key} failed to create.`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Timed out waiting for column ${tableId}.${key}.`);
+}
+
+async function createColumn(tableId, column) {
+  const common = { databaseId, tableId, key: column.key, required: column.required };
+  if (column.type === "varchar") {
+    await tables.createVarcharColumn({ ...common, size: column.size, xdefault: column.default ?? null });
+  } else if (column.type === "datetime") {
+    await tables.createDatetimeColumn({ ...common, xdefault: column.default ?? null });
+  } else if (column.type === "enum") {
+    await tables.createEnumColumn({ ...common, elements: column.elements, xdefault: column.default ?? null });
+  } else if (column.type === "boolean") {
+    await tables.createBooleanColumn({ ...common, xdefault: column.default ?? null });
+  } else if (column.type === "integer") {
+    await tables.createIntegerColumn({ ...common, xdefault: column.default ?? null });
+  } else {
+    throw new Error(`Unsupported migration column type: ${column.type}`);
+  }
+  await waitForColumn(tableId, column.key);
+  console.log(`+ added ${tableId}.${column.key}`);
+}
+
+async function reconcileExisting(definition) {
   const [columns, indexes] = await Promise.all([
     tables.listColumns({ databaseId, tableId: definition.id, total: false }),
     tables.listIndexes({ databaseId, tableId: definition.id, total: false }),
@@ -228,10 +259,18 @@ async function verifyExisting(definition) {
   const missingColumns = definition.columns.filter((column) => !columnKeys.has(column.key));
   const missingIndexes = definition.indexes.filter((item) => !indexKeys.has(item.key));
 
-  if (missingColumns.length || missingIndexes.length) {
-    throw new Error(
-      `Table ${definition.id} exists but is incomplete. Missing columns: ${missingColumns.map((item) => item.key).join(", ") || "none"}; missing indexes: ${missingIndexes.map((item) => item.key).join(", ") || "none"}.`,
-    );
+  for (const column of missingColumns) {
+    await createColumn(definition.id, column);
+  }
+  for (const item of missingIndexes) {
+    await tables.createIndex({
+      databaseId,
+      tableId: definition.id,
+      key: item.key,
+      type: item.type,
+      columns: item.attributes,
+    });
+    console.log(`+ added ${definition.id}.${item.key}`);
   }
 }
 
@@ -240,7 +279,7 @@ console.log(`Provisioning ${schema.length} tables in database ${databaseId}...`)
 for (const definition of schema) {
   const existing = await findTable(definition.id);
   if (existing) {
-    await verifyExisting(definition);
+    await reconcileExisting(definition);
     console.log(`✓ ${definition.id} already matches`);
     continue;
   }

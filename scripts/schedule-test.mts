@@ -7,7 +7,7 @@ const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
 const [
-  { createSchedule, updateSchedule },
+  { archiveSchedule, createSchedule, updateSchedule },
   { ensureTodayOccurrences },
   { getServerAppwrite },
   { TABLES },
@@ -77,12 +77,27 @@ try {
   assert.equal(stored.active, true, "resume must reactivate the schedule");
   assert.equal((await scheduleOccurrences()).length, 1, "resume must reuse today's occurrence");
 
+  await assert.rejects(
+    archiveSchedule(CIRCLE_ID, scheduleId, "demo_maya"),
+    (error: unknown) => error instanceof Error && error.name === "ScheduleForbiddenError",
+    "a caregiver must not be able to remove a daily action",
+  );
+  await archiveSchedule(CIRCLE_ID, scheduleId, OWNER_ID);
+  stored = await tables.getRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });
+  assert.equal(stored.active, false, "removal must disable future generation");
+  assert.ok(stored.archivedAt, "removal must retain a soft archive marker");
+  assert.equal((await scheduleOccurrences()).length, 1, "removal must preserve occurrence history");
+  await ensureTodayOccurrences(CIRCLE_ID);
+  assert.equal((await scheduleOccurrences()).length, 1, "archived schedules must not generate occurrences");
+
   console.log("OneDose daily schedule proof passed");
   console.table({
     generatedPerDay: 1,
     duplicateGenerationPrevented: true,
     editedWithoutDuplicate: true,
     pauseResumeVerified: true,
+    ownerOnlyRemovalVerified: true,
+    historyPreservedAfterRemoval: true,
   });
 } finally {
   if (scheduleId) {

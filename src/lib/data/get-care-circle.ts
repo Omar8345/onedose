@@ -23,6 +23,7 @@ type ScheduleRow = Models.Row & {
   localTime: string;
   timezone: string;
   active: boolean;
+  archivedAt: string | null;
 };
 type EventRow = Models.Row & {
   occurrenceId: string;
@@ -73,7 +74,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const availability = (userId: string) => availabilityByUserId.get(userId) ?? "available";
   const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
-    if (!schedule || !schedule.active || localDateKey(new Date(row.dueAt), circle.timezone) !== todayKey) return [];
+    if (!schedule || schedule.archivedAt || !schedule.active || localDateKey(new Date(row.dueAt), circle.timezone) !== todayKey) return [];
     const recorded = row.status !== "due";
     return [{
       id: row.$id,
@@ -164,7 +165,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     },
     members,
     caregivers,
-    schedules: schedules.rows.map((schedule) => ({
+    schedules: schedules.rows.filter((schedule) => !schedule.archivedAt).map((schedule) => ({
       id: schedule.$id,
       title: schedule.title,
       instruction: schedule.instruction ?? "",

@@ -14,6 +14,7 @@ type ScheduleRow = Models.Row & {
   timezone: string;
   rrule: string;
   active: boolean;
+  archivedAt: string | null;
 };
 
 export async function ensureTodayOccurrences(circleId: string, now = new Date()) {
@@ -26,6 +27,7 @@ export async function ensureTodayOccurrences(circleId: string, now = new Date())
       queries: [
         Query.equal("circleId", [circleId]),
         Query.equal("active", [true]),
+        Query.isNull("archivedAt"),
         Query.limit(100),
       ],
       total: false,

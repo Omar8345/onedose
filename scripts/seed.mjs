@@ -190,6 +190,7 @@ await ensureRow("schedules", ids.schedule, {
   timezone: "Asia/Dubai",
   rrule: "FREQ=DAILY",
   active: true,
+  archivedAt: null,
 });
 
 const seededOccurrence = await ensureOccurrence(occurrence.id, {

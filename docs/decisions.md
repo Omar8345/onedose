@@ -77,3 +77,11 @@ which the browser uses only for Appwrite Realtime. Subscriptions listen to
 occurrences, audit events, schedules, and memberships, while existing Team row
 permissions decide which events each caregiver may receive.
 
+## 008 — archive daily actions instead of deleting history
+
+**Status:** accepted
+
+Only the care-circle owner can remove a daily action. Removal disables the
+schedule and records `archivedAt`, so it creates no future occurrences or
+reminders while existing occurrences and handoff events remain auditable.
+

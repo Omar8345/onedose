@@ -53,8 +53,9 @@ Index: key `circleId,archivedAt`.
 | `timezone` | string(64) | IANA timezone captured with schedule |
 | `rrule` | string(500) | Recurrence rule |
 | `active` | boolean | Whether new occurrences are generated |
+| `archivedAt` | datetime, nullable | Soft archive marker; history remains linked |
 
-Indexes: key `circleId,active`; key `recipientId,active`.
+Indexes: key `circleId,active`; key `recipientId,active`; key `circleId,archivedAt`.
 
 ### `occurrences`
 

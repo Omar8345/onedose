@@ -24,6 +24,7 @@ type ScheduleRow = Models.Row & {
   recipientId: string;
   timezone: string;
   active: boolean;
+  archivedAt: string | null;
 };
 
 export class ScheduleForbiddenError extends Error {
@@ -71,6 +72,7 @@ export async function createSchedule(circleId: string, userId: string, input: Sc
       timezone: circle.timezone,
       rrule: "FREQ=DAILY",
       active: input.active,
+      archivedAt: null,
     },
     permissions: [Permission.read(Role.team(circle.teamId))],
   });
@@ -92,6 +94,7 @@ export async function updateSchedule(
     rowId: scheduleId,
   });
   if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
+  if (schedule.archivedAt) throw new ScheduleNotFoundError();
 
   const updated = await tables.updateRow({
     databaseId,
@@ -131,8 +134,34 @@ export async function updateSchedule(
   return updated;
 }
 
+export class ScheduleNotFoundError extends Error {
+  constructor() {
+    super("This daily action no longer exists.");
+    this.name = "ScheduleNotFoundError";
+  }
+}
+
+export async function archiveSchedule(circleId: string, scheduleId: string, userId: string) {
+  const { databaseId, tables } = await ownerContext(circleId, userId);
+  const schedule = await tables.getRow<ScheduleRow>({
+    databaseId,
+    tableId: TABLES.schedules,
+    rowId: scheduleId,
+  });
+  if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
+  if (schedule.archivedAt) return schedule;
+
+  return tables.updateRow<ScheduleRow>({
+    databaseId,
+    tableId: TABLES.schedules,
+    rowId: scheduleId,
+    data: { active: false, archivedAt: new Date().toISOString() },
+  });
+}
+
 export function scheduleErrorStatus(error: unknown) {
   if (error instanceof ScheduleForbiddenError) return 403;
+  if (error instanceof ScheduleNotFoundError) return 404;
   if (error instanceof AppwriteException && error.code === 404) return 404;
   return 500;
 }

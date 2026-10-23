@@ -205,6 +205,9 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .schedule-management-time { font: 650 20px var(--font-mono), monospace; color: var(--sage); }
 .schedule-management-card h2 { margin: 0; font-size: 19px; }
 .schedule-management-card p { margin: 7px 0 0; color: var(--muted); line-height: 1.5; }
+.schedule-management-actions { display: flex; align-items: center; gap: 10px; }
+.secondary-button--danger { border-color: #e2b3a8; color: #a54434; }
+.secondary-button--danger:hover { border-color: #c98274; background: var(--coral-soft); color: #843629; }
 .schedule-empty { text-align: center; padding: 58px 24px; border: 1px dashed #c8cec7; border-radius: 18px; color: var(--muted); }
 .schedule-empty svg { color: var(--sage); }
 .schedule-empty h2 { color: var(--ink); margin: 14px 0 7px; }
@@ -214,6 +217,17 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .schedule-active-field input { width: 18px; height: 18px; accent-color: var(--sage); }
 .schedule-active-field span { display: flex; flex-direction: column; }
 .schedule-active-field small { color: #607b6e; margin-top: 3px; }
+.remove-schedule-dialog { width: min(500px, 100%); }
+.remove-schedule-heading { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 14px; padding-right: 34px; }
+.remove-schedule-heading .result-icon { width: 52px; height: 52px; margin: 0; }
+.remove-schedule-heading h2 { margin: 5px 0 0; font-size: 27px; }
+.remove-schedule-dialog .dialog-lead { margin: 24px 0 0; }
+.remove-schedule-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 12px 13px; border: 1px solid #f0c9c0; border-radius: 11px; background: var(--coral-soft); color: #8d4437; font-size: 12px; line-height: 1.45; }
+.remove-schedule-note svg { flex: 0 0 auto; margin-top: 1px; }
+.remove-schedule-dialog .form-error { margin-top: 14px; }
+.remove-schedule-dialog .dialog-actions { margin-top: 26px; }
+.remove-confirm-button { background: #a54434; box-shadow: 0 8px 20px rgba(119,50,37,.14); }
+.remove-confirm-button:hover { background: #8e392d; box-shadow: 0 10px 23px rgba(119,50,37,.2); }
 .caregivers-view .page-heading { align-items: center; }
 .management-badge { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #c8d8cf; border-radius: 999px; color: #567565; background: var(--sage-soft); font-size: 11px; font-weight: 650; white-space: nowrap; }
 .caregiver-overview { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 7px 22px rgba(31,48,42,.04); overflow: hidden; }
@@ -536,6 +550,10 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .schedule-page-heading .primary-button { width: 100%; }
   .schedule-management-card { grid-template-columns: 1fr auto; gap: 14px; padding: 19px; }
   .schedule-management-time { grid-column: 1 / -1; font-size: 17px; }
+  .schedule-management-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; padding-top: 2px; }
+  .schedule-management-actions button { flex: 1 1 140px; }
+  .schedule-management-actions { grid-column: 1 / -1; width: 100%; }
+  .schedule-management-actions button { flex: 1; }
   .caregivers-view .page-heading { align-items: flex-start; }
   .caregiver-overview { width: 100%; }
   .caregiver-overview > div { flex: 1; }

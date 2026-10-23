@@ -116,6 +116,7 @@ export async function createCareCircle({
       timezone: input.timezone,
       rrule: "FREQ=DAILY",
       active: true,
+      archivedAt: null,
     }, permissions: teamRead, transactionId: transaction.$id });
 
     await tables.createRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId, data: {

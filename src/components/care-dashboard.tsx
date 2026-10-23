@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  Trash2,
   UserPlus,
   UsersRound,
   X,
@@ -78,6 +79,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [scheduleEditor, setScheduleEditor] = useState<CareSchedule | "new" | null>(null);
+  const [scheduleToRemove, setScheduleToRemove] = useState<CareSchedule | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("connecting");
   const [isRefreshing, startRefresh] = useTransition();
 
@@ -335,7 +337,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         ) : view === "caregivers" ? (
           <CaregiversView circle={circle} viewerId={viewer.id} />
         ) : (
-          <ScheduleView circle={circle} onEdit={setScheduleEditor} />
+          <ScheduleView circle={circle} onEdit={setScheduleEditor} onRemove={setScheduleToRemove} />
         )}
       </section>
 
@@ -383,6 +385,9 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           schedule={scheduleEditor === "new" ? null : scheduleEditor}
           onClose={() => setScheduleEditor(null)}
         />
+      ) : null}
+      {scheduleToRemove ? (
+        <RemoveScheduleDialog schedule={scheduleToRemove} onClose={() => setScheduleToRemove(null)} />
       ) : null}
     </main>
   );
@@ -647,7 +652,15 @@ function CaregiverCard({
   );
 }
 
-function ScheduleView({ circle, onEdit }: { circle: CareCircle; onEdit: (schedule: CareSchedule | "new") => void }) {
+function ScheduleView({
+  circle,
+  onEdit,
+  onRemove,
+}: {
+  circle: CareCircle;
+  onEdit: (schedule: CareSchedule | "new") => void;
+  onRemove: (schedule: CareSchedule) => void;
+}) {
   return (
     <div className="page-content schedule-view">
       <div className="page-heading schedule-page-heading">
@@ -672,7 +685,10 @@ function ScheduleView({ circle, onEdit }: { circle: CareCircle; onEdit: (schedul
               </div>
               <p>{schedule.instruction || "No additional instructions."}</p>
             </div>
-            <button className="secondary-button" onClick={() => onEdit(schedule)}><Pencil size={15} /> Edit</button>
+            <div className="schedule-management-actions">
+              <button className="secondary-button" type="button" onClick={() => onEdit(schedule)}><Pencil size={15} /> Edit</button>
+              <button className="secondary-button secondary-button--danger" type="button" onClick={() => onRemove(schedule)}><Trash2 size={15} /> Remove</button>
+            </div>
           </article>
         ))}
         {!circle.schedules.length ? (
@@ -768,6 +784,67 @@ function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; 
             </button>
           </div>
         </form>
+      </section>
+    </div>
+  );
+}
+
+function RemoveScheduleDialog({ schedule, onClose }: { schedule: CareSchedule; onClose: () => void }) {
+  const router = useRouter();
+  const [removing, setRemoving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !removing) setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [removing]);
+
+  function close() {
+    if (!removing) setClosing(true);
+  }
+
+  async function remove() {
+    setRemoving(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/schedules/${schedule.id}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The daily action could not be removed.");
+      setClosing(true);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The daily action could not be removed.");
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onClose(); }}>
+      <section className={`dialog remove-schedule-dialog ${closing ? "dialog--closing" : ""}`} role="alertdialog" aria-modal="true" aria-labelledby="remove-schedule-title" aria-describedby="remove-schedule-description" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close" disabled={removing}><X size={19} /></button>
+        <div className="remove-schedule-heading">
+          <span className="result-icon result-icon--protected"><Trash2 size={22} /></span>
+          <div>
+            <span className="section-kicker section-kicker--coral">Remove daily action</span>
+            <h2 id="remove-schedule-title">Remove {schedule.title}?</h2>
+          </div>
+        </div>
+        <p className="dialog-lead" id="remove-schedule-description">This will stop the action from appearing in the care plan and creating new reminders. Existing handoff history will stay intact.</p>
+        <div className="remove-schedule-note">
+          <CircleAlert size={17} />
+          <span>Future occurrences will no longer be created.</span>
+        </div>
+        {message ? <p className="form-error">{message}</p> : null}
+        <div className="dialog-actions">
+          <button className="secondary-button" type="button" disabled={removing} onClick={close}>Keep action</button>
+          <button className="primary-button remove-confirm-button" type="button" disabled={removing} onClick={remove}>
+            <Trash2 size={16} /> {removing ? "Removing…" : "Remove action"}
+          </button>
+        </div>
       </section>
     </div>
   );
