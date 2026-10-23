@@ -14,7 +14,6 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
-  RefreshCw,
   ShieldCheck,
   UserPlus,
   X,
@@ -60,6 +59,13 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
   const dueCount = occurrences.filter((item) => item.status === "due").length;
+  const liveLabel = liveStatus === "live"
+    ? (isRefreshing ? "Syncing" : "Live updates")
+    : liveStatus === "offline"
+      ? "Offline"
+      : liveStatus === "reconnecting"
+        ? "Reconnecting"
+        : "Connecting";
 
   useEffect(() => {
     let disposed = false;
@@ -261,12 +267,13 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             </div>
             <span><i className={dueCount ? "presence-dot--due" : ""} /> {dueCount ? `${dueCount} due now` : "All caught up"}</span>
           </div>
-          <span className={`live-sync live-sync--${liveStatus}`} role="status">
-            <i /> {liveStatus === "live" ? "Live" : liveStatus === "offline" ? "Offline" : liveStatus === "reconnecting" ? "Reconnecting" : "Connecting"}
+          <span
+            className={`live-sync live-sync--${liveStatus}`}
+            role="status"
+            title="Changes from your care circle appear automatically"
+          >
+            <i aria-hidden="true" /> {liveLabel}
           </span>
-          <button className="secondary-button" onClick={() => startRefresh(() => router.refresh())} disabled={isRefreshing}>
-            <RefreshCw size={16} /> {isRefreshing ? "Refreshing…" : "Refresh live data"}
-          </button>
         </header>
 
         {view === "today" ? (
