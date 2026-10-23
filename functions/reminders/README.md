@@ -11,7 +11,7 @@ function is retried.
 - Entrypoint: `src/main.js`
 - Build command: `npm install`
 - Schedule: interval of `60` minutes
-- Scopes: `rows.read`, `rows.write`, and `messages.write`
+- Scopes: `rows.read`, `rows.write`, `messages.write`, and `teams.read`
 - Variables:
   - `DATABASE_ID=6ad61f7e003988501658`
   - `APP_URL=https://onedose.appwrite.network`

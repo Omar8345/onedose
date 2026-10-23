@@ -21,6 +21,7 @@ The current foundation includes:
 - an interactive conflict demo showing which concurrent attempt won
 - Appwrite browser and server client boundaries
 - passwordless Email OTP authentication and private Appwrite Teams
+- authenticated Appwrite Realtime updates across caregiver sessions
 - secure caregiver invitations with Appwrite Team acceptance
 - transactional onboarding for a user's first circle and daily action
 - owner-managed daily actions with pause and resume controls
@@ -48,8 +49,9 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). The public Appwrite
 endpoint, project ID, and database ID are included in `.env.example`. Add your
 own server API key to `.env.local`; never commit it. The key needs TablesDB
-schema/read/write permissions plus `sessions.read` and `sessions.write` for the
-server-rendered Email OTP session flow.
+schema/read/write permissions, `sessions.read`, `sessions.write`, `users.read`,
+`users.write`, and `teams.read` for the server-rendered Email OTP, invitation,
+Messaging target, and short-lived Realtime token flows.
 
 Provision the TablesDB schema after adding an API key with database schema
 permissions:
@@ -88,10 +90,20 @@ The reminder proof creates one due item and one overdue item, runs competing
 sweeps, and verifies that each notification level receives exactly one delivery
 record. It runs in dry-run mode and removes its synthetic rows afterward.
 
+Verify that outsiders are rejected and retries remain idempotent:
+
+```bash
+npm run test:safety
+```
+
+The safety proof rejects a non-member completion, accepts one authorized
+completion, replays an identical request without another write, and rejects a
+changed payload that reuses the same idempotency key.
+
 The production worker lives in [`functions/reminders`](functions/reminders).
 Deploy that folder as an Appwrite Function with a 60-minute interval, grant
-`rows.read`, `rows.write`, and `messages.write`, and configure an Appwrite email
-provider. Full settings are in the function's README.
+`rows.read`, `rows.write`, `messages.write`, and `teams.read`, and configure an
+Appwrite email provider. Full settings are in the function's README.
 
 The race test confirms two caregiver views see the same due occurrence, then sends
 25 completion requests at the same time through the real completion service.

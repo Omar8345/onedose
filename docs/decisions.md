@@ -59,3 +59,13 @@ items. It sends a first reminder when an action is due and a second escalation
 after 60 minutes. Each `occurrenceId:kind` pair claims one server-only delivery
 row and one deterministic Messaging ID, so retries do not spam caregivers.
 
+## 007 — authenticate Realtime with short-lived user tokens
+
+**Status:** accepted
+
+The site keeps the long-lived Appwrite session secret in an HTTP-only cookie.
+An authenticated server route exchanges the current session for a one-hour JWT,
+which the browser uses only for Appwrite Realtime. Subscriptions listen to
+occurrences, audit events, schedules, and memberships, while existing Team row
+permissions decide which events each caregiver may receive.
+
