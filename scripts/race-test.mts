@@ -21,6 +21,7 @@ const teamId = `race_team_${runId}`;
 const scheduleId = `race_sched_${runId}`;
 const recipientId = `race_rec_${runId}`;
 const occurrenceId = `race_occ_${runId}`;
+const notificationId = `race_ntf_${runId}`;
 const actors = [`race_owner_${runId}`, `race_carer_${runId}`] as const;
 const memberships = [`race_own_${runId}`, `race_car_${runId}`] as const;
 const dueAt = new Date().toISOString();
@@ -37,7 +38,8 @@ async function removeRows(tableId: string, rows: Models.Row[]) {
 
 async function cleanup() {
   if (!setupComplete || process.env.KEEP_RACE_DATA === "1") return;
-  const [events, commands] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands)]);
+  const [events, commands, notifications] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands), rowsFor(TABLES.notifications)]);
+  await removeRows(TABLES.notifications, notifications.rows);
   await removeRows(TABLES.commands, commands.rows);
   await removeRows(TABLES.events, events.rows);
   await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }).catch(() => undefined);
@@ -80,12 +82,18 @@ try {
   await tables.createRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId, data: {
     circleId, teamId, scheduleId, dueAt, status: "due", version: 0,
   }, permissions: [] });
+  await tables.createRow({ databaseId, tableId: TABLES.notifications, rowId: notificationId, data: {
+    circleId, occurrenceId, kind: "due", status: "sent", recipientCount: 1,
+    claimedAt: dueAt, sentAt: dueAt, lastError: null, messageId: `race_msg_${runId}`,
+  }, permissions: [] });
   const [ownerBefore, caregiverBefore] = await Promise.all([
     getCareCircle(circleId, { id: actors[0], name: "Race owner" }),
     getCareCircle(circleId, { id: actors[1], name: "Race caregiver" }),
   ]);
   assert.equal(ownerBefore.occurrences.find((item) => item.id === occurrenceId)?.status, "due");
   assert.equal(caregiverBefore.occurrences.find((item) => item.id === occurrenceId)?.status, "due");
+  assert.equal(ownerBefore.alertActivity.length, 1, "the owner must see the delivery ledger");
+  assert.equal(caregiverBefore.alertActivity.length, 0, "caregivers must not receive delivery metadata");
 
   console.log(`Two authenticated caregivers see ${occurrenceId}. Launching ${REQUEST_COUNT} simultaneous requests...`);
   const startedAt = performance.now();

@@ -25,6 +25,7 @@ The current foundation includes:
 - secure caregiver invitations with Appwrite Team acceptance
 - caregiver availability that suppresses alerts without removing access
 - owner-configured first-contact and overdue escalation rules
+- an owner-only alert activity ledger backed by TablesDB delivery records
 - transactional onboarding for a user's first circle and daily action
 - owner-managed daily actions with pause, resume, and history-preserving removal
 - a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation

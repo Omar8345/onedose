@@ -404,6 +404,12 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
   const [escalationMinutes, setEscalationMinutes] = useState(circle.alertSettings.escalationMinutes);
   const [savingRules, setSavingRules] = useState(false);
 
+  useEffect(() => {
+    if (circle.viewerRole !== "owner") return;
+    const timer = window.setInterval(() => router.refresh(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [circle.viewerRole, router]);
+
   async function changeAvailability(next: CareCircle["viewerAvailability"]) {
     setSavingAvailability(true);
     setErrorMessage("");
@@ -498,7 +504,7 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
         <section className="caregiver-section escalation-panel">
           <div className="section-heading">
             <div><span className="eyebrow">Alert sequence</span><h2>Escalation rules</h2></div>
-            <BellRing size={21} />
+            <span className="alert-activity-heading-icon"><BellRing size={18} /></span>
           </div>
           <p className="panel-copy">The first contact receives the due reminder. If no outcome is recorded, every available caregiver receives the escalation.</p>
           <div className="alert-rule-fields">
@@ -508,6 +514,8 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
           </div>
         </section>
       ) : null}
+
+      {circle.viewerRole === "owner" ? <AlertActivityPanel circle={circle} /> : null}
 
       {circle.viewerRole === "owner" ? <section className="caregiver-section">
         <div className="section-heading">
@@ -555,6 +563,42 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
         />
       ) : null}
     </div>
+  );
+}
+
+function AlertActivityPanel({ circle }: { circle: CareCircle }) {
+  return (
+    <section className="caregiver-section alert-activity-panel">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">Delivery ledger</span>
+          <h2>Alert activity</h2>
+          <p className="section-description">A recent record of reminders and escalations sent by OneDose.</p>
+        </div>
+        <BellRing size={21} />
+      </div>
+      {circle.alertActivity.length ? (
+        <div className="alert-activity-list">
+          {circle.alertActivity.map((activity) => {
+            const delivered = activity.status === "sent" || activity.status === "dry_run";
+            const label = activity.kind === "due" ? "First reminder" : "Escalation";
+            const recipientLabel = `${activity.recipientCount} ${activity.recipientCount === 1 ? "caregiver" : "caregivers"}`;
+            return (
+              <article className={`alert-activity-row alert-activity-row--${activity.status}`} key={activity.id}>
+                <span className="alert-activity-icon">{delivered ? <Check size={16} /> : <CircleAlert size={16} />}</span>
+                <div>
+                  <div className="alert-activity-title"><strong>{label}</strong><span className="alert-activity-action">{activity.title}</span></div>
+                  <p>{activity.status === "failed" ? "Delivery failed" : activity.status === "claimed" ? "Delivery in progress" : `${recipientLabel} notified`}</p>
+                </div>
+                <time><strong>{activity.time}</strong><small>{activity.dateLabel}</small></time>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="alert-activity-empty"><BellRing size={22} /><span><strong>No alerts sent yet</strong><small>Reminder activity will appear here after the scheduled Function runs.</small></span></div>
+      )}
+    </section>
   );
 }
 

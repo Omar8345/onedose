@@ -46,6 +46,7 @@ The demonstration uses synthetic people and schedules.
 - The server, rather than the browser, decides whether a completion wins.
 - Unavailable caregivers never receive due or overdue notifications.
 - Notification retries do not create duplicate deliveries.
+- Alert delivery metadata is shown only to the care-circle owner.
 
 ## Proof scenario
 

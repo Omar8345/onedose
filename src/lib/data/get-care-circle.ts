@@ -13,7 +13,7 @@ import {
 } from "@/lib/domain/schema";
 import { stableRowId } from "@/lib/domain/ids";
 import { localDateKey, localDateLabel } from "@/lib/domain/time";
-import type { CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
+import type { AlertActivity, CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 
 type CircleRow = Models.Row & { name: string; timezone: string; teamId: string };
 type RecipientRow = Models.Row & { displayName: string };
@@ -34,6 +34,14 @@ type EventRow = Models.Row & {
   occurredAt: string;
   supersedesEventId: string | null;
 };
+type NotificationRow = Models.Row & {
+  occurrenceId: string;
+  kind: "due" | "overdue";
+  status: "claimed" | "sent" | "failed" | "dry_run";
+  recipientCount: number;
+  claimedAt: string;
+  sentAt: string | null;
+};
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "CG";
@@ -45,7 +53,7 @@ function formatTime(value: string, timezone: string) {
 export async function getCareCircle(circleId: string, viewer: { id: string; name: string }): Promise<CareCircle> {
   const { databaseId, tables, teams } = getServerAppwrite();
   const circle = await tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId });
-  const [recipients, schedules, circleMembers, occurrences, events, teamMemberships, preferences, settings] = await Promise.all([
+  const [recipients, schedules, circleMembers, occurrences, events, teamMemberships, preferences, settings, notifications] = await Promise.all([
     tables.listRows<RecipientRow>({ databaseId, tableId: TABLES.recipients, queries: [Query.equal("circleId", [circleId]), Query.limit(25)], total: false }),
     tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<MemberRow>({ databaseId, tableId: TABLES.members, queries: [Query.equal("circleId", [circleId]), Query.equal("status", ["active"]), Query.limit(25)], total: false }),
@@ -54,6 +62,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     teams.listMemberships({ teamId: circle.teamId, total: false }),
     tables.listRows<CaregiverPreferenceRow>({ databaseId, tableId: TABLES.caregiverPreferences, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<CircleSettingsRow>({ databaseId, tableId: TABLES.circleSettings, queries: [Query.equal("circleId", [circleId]), Query.limit(1)], total: false }),
+    tables.listRows<NotificationRow>({ databaseId, tableId: TABLES.notifications, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("claimedAt"), Query.limit(8)], total: false }),
   ]);
 
   const scheduleById = new Map(schedules.rows.map((schedule) => [schedule.$id, schedule]));
@@ -150,6 +159,22 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       })
       .sort((left, right) => Number(right.status === "active") - Number(left.status === "active") || left.name.localeCompare(right.name))
     : [];
+  const alertActivity: AlertActivity[] = viewerRole === "owner"
+    ? notifications.rows.map((delivery) => {
+      const occurrence = occurrenceById.get(delivery.occurrenceId);
+      const schedule = occurrence ? scheduleById.get(occurrence.scheduleId) : undefined;
+      const happenedAt = delivery.sentAt ?? delivery.claimedAt;
+      return {
+        id: delivery.$id,
+        kind: delivery.kind,
+        status: delivery.status,
+        title: schedule?.title ?? "Scheduled care action",
+        dateLabel: localDateLabel(new Date(happenedAt), circle.timezone),
+        time: formatTime(happenedAt, circle.timezone),
+        recipientCount: delivery.recipientCount,
+      };
+    })
+    : [];
 
   return {
     id: circle.$id,
@@ -163,6 +188,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       primaryUserId,
       escalationMinutes: Math.max(60, settings.rows[0]?.escalationMinutes ?? 60),
     },
+    alertActivity,
     members,
     caregivers,
     schedules: schedules.rows.filter((schedule) => !schedule.archivedAt).map((schedule) => ({

@@ -41,6 +41,16 @@ export type Caregiver = {
   availability: "available" | "unavailable";
 };
 
+export type AlertActivity = {
+  id: string;
+  kind: "due" | "overdue";
+  status: "claimed" | "sent" | "failed" | "dry_run";
+  title: string;
+  dateLabel: string;
+  time: string;
+  recipientCount: number;
+};
+
 export type CareCircle = {
   id: string;
   teamId: string;
@@ -50,6 +60,7 @@ export type CareCircle = {
   viewerRole: "owner" | "caregiver" | "viewer";
   viewerAvailability: "available" | "unavailable";
   alertSettings: { primaryUserId: string; escalationMinutes: number };
+  alertActivity: AlertActivity[];
   members: { id: string; name: string; initials: string; color: string; availability: "available" | "unavailable" }[];
   caregivers: Caregiver[];
   schedules: CareSchedule[];
