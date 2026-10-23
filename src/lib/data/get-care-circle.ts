@@ -160,7 +160,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     viewerAvailability: availability(viewer.id),
     alertSettings: {
       primaryUserId,
-      escalationMinutes: settings.rows[0]?.escalationMinutes ?? 60,
+      escalationMinutes: Math.max(60, settings.rows[0]?.escalationMinutes ?? 60),
     },
     members,
     caregivers,

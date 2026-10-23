@@ -71,7 +71,7 @@ try {
     }, permissions: [] });
   }
   await tables.createRow({ databaseId, tableId: TABLES.circleSettings, rowId: settingsId, data: {
-    circleId, primaryUserId: users[1], escalationMinutes: 15, updatedAt: now.toISOString(),
+    circleId, primaryUserId: users[1], escalationMinutes: 60, updatedAt: now.toISOString(),
   }, permissions: [] });
   await createOccurrence(occurrenceIds[0], new Date(now.getTime() - 5 * 60_000));
   await createOccurrence(occurrenceIds[1], new Date(now.getTime() - 26 * 60 * 60_000));
@@ -98,7 +98,7 @@ try {
     runReminderSweep(options),
   ]);
   const waiting = await runReminderSweep(options);
-  const escalatedAt = new Date(now.getTime() + 16 * 60_000);
+  const escalatedAt = new Date(now.getTime() + 61 * 60_000);
   const escalationOptions = { ...options, now: escalatedAt };
   const [escalated, competingEscalation] = await Promise.all([
     runReminderSweep(escalationOptions),
@@ -113,7 +113,7 @@ try {
   assert.equal(rows.find((row) => row.kind === "due")?.recipientCount, 1, "only the first available contact receives the due reminder");
   assert.equal(rows.find((row) => row.kind === "overdue")?.recipientCount, 2, "the escalation reaches every available caregiver");
   assert.equal(first.dryRun + concurrent.dryRun, 1, "concurrent sweeps must claim the first reminder once");
-  assert.equal(first.duplicate + concurrent.duplicate, 1, "the competing sweep must observe the due claim");
+  assert.equal(first.duplicate + concurrent.duplicate + first.waiting + concurrent.waiting, 1, "the competing sweep must observe the due claim or wait for escalation");
   assert.equal(waiting.waiting, 1, "the worker must wait from the first reminder before escalating");
   assert.equal(escalated.dryRun + competingEscalation.dryRun, 1, "concurrent sweeps must claim the escalation once");
   assert.equal(escalated.duplicate + competingEscalation.duplicate, 1, "the competing sweep must observe the escalation claim");

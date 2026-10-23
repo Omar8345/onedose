@@ -264,7 +264,7 @@ async function processOccurrence({ tables, messaging, databaseId, circle, confir
     listAllRows(tables, databaseId, TABLES.circleSettings, [Query.equal("circleId", [circle.$id])]),
   ]);
   const settings = settingsRows[0];
-  const delayMinutes = settings?.escalationMinutes ?? overdueMinutes;
+  const delayMinutes = Math.max(60, settings?.escalationMinutes ?? overdueMinutes);
   const dueDelivery = await deliveryFor(tables, databaseId, occurrence.$id, "due");
   const dueWasDelivered = dueDelivery && ["sent", "dry_run"].includes(dueDelivery.status);
   const firstReminderAt = dueDelivery?.sentAt || dueDelivery?.claimedAt;

@@ -132,16 +132,29 @@ function executions cannot enqueue the same notification twice.
 Indexes: unique composite `occurrenceId,kind`; key `circleId,claimedAt`; key
 `status,claimedAt`.
 
+### `caregiver_preferences`
+
+Stores each caregiver's alert availability independently from their access.
+Rows are unique by `circleId,userId` and contain `availability` plus `updatedAt`.
+
+### `care_circle_settings`
+
+Stores one circle-level alert policy: `primaryUserId`, `escalationMinutes`, and
+`updatedAt`. Escalation is limited to 60–720 minutes to match the deployment
+plan's hourly Function schedule.
+
 ## Reminder sweep
 
 1. The hourly function materializes missing daily occurrences in each circle's
    timezone.
-2. It selects active, due occurrences and classifies them as due or overdue.
-3. A deterministic delivery row claims that occurrence and reminder level.
-4. The message targets every active caregiver account in the circle.
-5. A deterministic Appwrite Messaging ID protects a retry after a partial
+2. It selects active, due occurrences and excludes unavailable caregivers.
+3. The first run targets the selected contact, an available owner, or one
+   deterministic available fallback.
+4. The successful first reminder starts the configured escalation timer.
+5. A later hourly run targets every available caregiver when the timer expires.
+6. A deterministic delivery row and Messaging ID protect retries after partial
    failure.
-6. Failed claims can be retried after 15 minutes; completed claims are skipped.
+7. Failed claims can be retried after 15 minutes; completed claims are skipped.
 
 ## Atomic completion
 

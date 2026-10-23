@@ -54,7 +54,8 @@ that Team. The browser never supplies a trusted circle or membership role.
 
 **Status:** accepted
 
-An Appwrite Function runs every five minutes to create missing daily occurrences
+An Appwrite Function runs every 60 minutes, the minimum interval supported by
+the current Appwrite plan, to create missing daily occurrences
 and evaluate due items. The owner selects a first contact and a delay. The first
 available contact receives the due reminder, which starts the escalation timer;
 if the action remains incomplete when that timer expires, every available

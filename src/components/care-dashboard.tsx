@@ -498,7 +498,7 @@ function CaregiversView({ circle, viewerId }: { circle: CareCircle; viewerId: st
           <p className="panel-copy">The first contact receives the due reminder. If no outcome is recorded, every available caregiver receives the escalation.</p>
           <div className="alert-rule-fields">
             <label><span>First contact</span><select value={primaryUserId} onChange={(event) => setPrimaryUserId(event.target.value)}>{active.map((caregiver) => <option key={caregiver.userId} value={caregiver.userId}>{caregiver.name}{caregiver.availability === "unavailable" ? " (unavailable)" : ""}</option>)}</select></label>
-            <label><span>Escalate after</span><select value={escalationMinutes} onChange={(event) => setEscalationMinutes(Number(event.target.value))}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={60}>1 hour</option><option value={120}>2 hours</option><option value={240}>4 hours</option></select></label>
+            <label><span>Escalate after</span><select value={escalationMinutes} onChange={(event) => setEscalationMinutes(Number(event.target.value))}><option value={60}>1 hour</option><option value={120}>2 hours</option><option value={240}>4 hours</option><option value={360}>6 hours</option><option value={720}>12 hours</option></select></label>
             <button className="primary-button" type="button" disabled={savingRules || !primaryUserId} onClick={saveAlertRules}>{savingRules ? "Saving…" : "Save rules"}</button>
           </div>
         </section>

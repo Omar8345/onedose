@@ -19,7 +19,7 @@ export const availabilityInputSchema = z.object({
 
 export const alertSettingsInputSchema = z.object({
   primaryUserId: z.string().min(1).max(36),
-  escalationMinutes: z.number().int().min(15).max(720),
+  escalationMinutes: z.number().int().min(60).max(720),
 });
 
 type CircleRow = Models.Row & { teamId: string };
