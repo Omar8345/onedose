@@ -77,6 +77,24 @@ async function listAllRows(tables, databaseId, tableId, queries = []) {
   }
 }
 
+async function confirmedTeamUserIds(teams, teamId) {
+  const userIds = new Set();
+  let offset = 0;
+
+  while (true) {
+    const page = await teams.listMemberships({
+      teamId,
+      queries: [Query.limit(PAGE_SIZE), Query.offset(offset)],
+      total: false,
+    });
+    for (const membership of page.memberships) {
+      if (membership.confirm && membership.userId) userIds.add(membership.userId);
+    }
+    if (page.memberships.length < PAGE_SIZE) return userIds;
+    offset += PAGE_SIZE;
+  }
+}
+
 async function materializeCircle(tables, databaseId, circle, now) {
   const schedules = await listAllRows(tables, databaseId, TABLES.schedules, [
     Query.equal("circleId", [circle.$id]),
@@ -221,14 +239,14 @@ async function finishDelivery(tables, databaseId, deliveryId, data) {
   });
 }
 
-async function processOccurrence({ tables, messaging, databaseId, circle, schedules, occurrence, now, overdueMinutes, appUrl, dryRun }) {
+async function processOccurrence({ tables, messaging, databaseId, circle, confirmedUserIds, schedules, occurrence, now, overdueMinutes, appUrl, dryRun }) {
   const ageMs = now.getTime() - Date.parse(occurrence.dueAt);
   const kind = ageMs >= overdueMinutes * 60_000 ? "overdue" : "due";
   const members = await listAllRows(tables, databaseId, TABLES.members, [
     Query.equal("circleId", [circle.$id]),
     Query.equal("status", ["active"]),
   ]);
-  const userIds = [...new Set(members.map((member) => member.userId).filter(Boolean))];
+  const userIds = [...new Set(members.map((member) => member.userId).filter((userId) => userId && confirmedUserIds.has(userId)))];
   const claim = await claimDelivery(tables, databaseId, occurrence, kind, userIds.length, now);
   if (!claim.claimed) return { kind, result: "duplicate" };
 
@@ -289,6 +307,7 @@ async function processOccurrence({ tables, messaging, databaseId, circle, schedu
 export async function runReminderSweep({
   tables,
   messaging,
+  teams,
   databaseId,
   now = new Date(),
   overdueMinutes = 60,
@@ -302,6 +321,7 @@ export async function runReminderSweep({
   const summary = { circles: circles.length, created: 0, due: 0, overdue: 0, sent: 0, dryRun: 0, duplicate: 0, failed: 0 };
 
   for (const circle of circles) {
+    const confirmedUserIds = await confirmedTeamUserIds(teams, circle.teamId);
     const materialized = skipMaterialization
       ? {
           schedules: await listAllRows(tables, databaseId, TABLES.schedules, [
@@ -327,6 +347,7 @@ export async function runReminderSweep({
         messaging,
         databaseId,
         circle,
+        confirmedUserIds,
         schedules,
         occurrence,
         now,

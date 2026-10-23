@@ -1,4 +1,4 @@
-import { Client, Messaging, TablesDB } from "node-appwrite";
+import { Client, Messaging, TablesDB, Teams } from "node-appwrite";
 
 import { runReminderSweep } from "./engine.js";
 
@@ -22,6 +22,7 @@ export default async function reminderHandler({ req, res, log, error }) {
     const summary = await runReminderSweep({
       tables: new TablesDB(client),
       messaging: new Messaging(client),
+      teams: new Teams(client),
       databaseId,
       overdueMinutes: Number(process.env.OVERDUE_MINUTES || 60),
       appUrl: process.env.APP_URL || "https://onedose.appwrite.network",

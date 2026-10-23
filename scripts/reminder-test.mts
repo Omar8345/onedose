@@ -56,6 +56,14 @@ try {
   const options = {
     tables,
     messaging: { createEmail: async () => { throw new Error("Dry-run must not call Messaging"); } },
+    teams: {
+      listMemberships: async () => ({
+        memberships: [
+          { userId: "demo_omar", confirm: true },
+          { userId: "demo_maya", confirm: true },
+        ],
+      }),
+    },
     databaseId,
     now,
     overdueMinutes: 60,
