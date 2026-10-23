@@ -14,7 +14,7 @@ const [{ getServerAppwrite }, { runReminderSweep, TABLES }] = await Promise.all(
 const { databaseId, tables } = getServerAppwrite();
 const now = new Date();
 const suffix = Date.now().toString(36);
-const occurrenceIds = [`rem_due_${suffix}`, `rem_late_${suffix}`];
+const occurrenceIds = [`rem_due_${suffix}`, `rem_late_${suffix}`, `rem_old_${suffix}`];
 const scheduleId = "demo_schedule_midday";
 const circleId = "demo_circle_nora";
 
@@ -52,6 +52,7 @@ async function deliveries() {
 try {
   await createOccurrence(occurrenceIds[0], new Date(now.getTime() - 5 * 60_000));
   await createOccurrence(occurrenceIds[1], new Date(now.getTime() - 90 * 60_000));
+  await createOccurrence(occurrenceIds[2], new Date(now.getTime() - 26 * 60 * 60_000));
 
   const options = {
     tables,
@@ -91,6 +92,7 @@ try {
     dueReminders: rows.filter((row) => row.kind === "due").length,
     overdueEscalations: rows.filter((row) => row.kind === "overdue").length,
     duplicateDeliveryPrevented: true,
+    previousDayIgnored: !rows.some((row) => row.occurrenceId === occurrenceIds[2]),
   });
 } finally {
   for (const row of await deliveries()) {

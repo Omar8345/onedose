@@ -339,8 +339,10 @@ export async function runReminderSweep({
       Query.lessThanEqual("dueAt", now.toISOString()),
     ]);
 
+    const todayKey = localDateKey(now, circle.timezone);
     for (const occurrence of occurrences) {
       if (onlyIds && !onlyIds.has(occurrence.$id)) continue;
+      if (localDateKey(new Date(occurrence.dueAt), circle.timezone) !== todayKey) continue;
       if (!schedules.has(occurrence.scheduleId)) continue;
       const result = await processOccurrence({
         tables,
