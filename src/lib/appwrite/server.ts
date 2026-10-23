@@ -1,6 +1,6 @@
 import "server-only";
 
-import { Client, TablesDB, Teams } from "node-appwrite";
+import { Client, TablesDB, Teams, Users } from "node-appwrite";
 import { z } from "zod";
 
 const serverEnvSchema = z.object({
@@ -21,5 +21,6 @@ export function getServerAppwrite() {
     databaseId: env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
     tables: new TablesDB(client),
     teams: new Teams(client),
+    users: new Users(client),
   };
 }

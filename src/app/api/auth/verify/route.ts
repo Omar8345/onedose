@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getAdminAccount, getSessionServices, setSessionCookie } from "@/lib/auth/session";
 import { activatePendingTeam, getPendingTeam } from "@/lib/auth/invitation";
+import { ensureEmailTarget } from "@/lib/auth/messaging-target";
 import { ensurePrimaryTeam } from "@/lib/auth/team";
 
 const verifySchema = z.object({
@@ -17,6 +18,12 @@ export async function POST(request: Request) {
     const account = getSessionServices(session.secret).account;
     const user = await account.get();
     await setSessionCookie(session);
+    try {
+      await ensureEmailTarget(user.$id, user.email);
+    } catch (error) {
+      // A notification setup problem must not invalidate a successful sign-in.
+      console.error("Unable to ensure OneDose email target", error);
+    }
     const pendingTeam = await getPendingTeam();
     if (!user.name || pendingTeam) return Response.json({ ok: true, needsProfile: true });
     const joinedInvitation = await activatePendingTeam(session.secret);
