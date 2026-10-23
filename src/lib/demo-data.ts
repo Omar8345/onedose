@@ -1,6 +1,7 @@
 import type { CareCircle } from "@/lib/types";
 
 export const demoCircle: CareCircle = {
+  id: "demo_circle_nora",
   viewerRole: "owner",
   recipient: "Nora’s care",
   timezone: "Asia/Dubai · UTC+4",

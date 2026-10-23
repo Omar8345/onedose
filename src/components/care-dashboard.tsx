@@ -19,12 +19,16 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { Channel, type RealtimeSubscription } from "appwrite";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { createRealtime } from "@/lib/appwrite/client";
+import { TABLES } from "@/lib/domain/schema";
 import type { CareCircle, CareSchedule, Occurrence } from "@/lib/types";
 
 type View = "today" | "handoff" | "schedules";
 type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
+type LiveStatus = "connecting" | "live" | "reconnecting" | "offline";
 
 type CompletionResponse = {
   kind: "accepted" | "replayed" | "already_recorded";
@@ -51,10 +55,86 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [scheduleEditor, setScheduleEditor] = useState<CareSchedule | "new" | null>(null);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("connecting");
   const [isRefreshing, startRefresh] = useTransition();
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
   const dueCount = occurrences.filter((item) => item.status === "due").length;
+
+  useEffect(() => {
+    let disposed = false;
+    let realtime: ReturnType<typeof createRealtime> | null = null;
+    let subscription: RealtimeSubscription | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let renewalTimer: ReturnType<typeof setTimeout> | null = null;
+
+    async function connect() {
+      try {
+        setLiveStatus("connecting");
+        const response = await fetch("/api/auth/realtime", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok || typeof payload.jwt !== "string") {
+          throw new Error(payload.message ?? "Live updates are unavailable.");
+        }
+        if (disposed) return;
+
+        realtime = createRealtime(payload.jwt);
+        realtime.onOpen(() => {
+          if (!disposed) setLiveStatus("live");
+        });
+        realtime.onClose(() => {
+          if (!disposed) setLiveStatus("reconnecting");
+        });
+        realtime.onError(() => {
+          if (!disposed) setLiveStatus("offline");
+        });
+
+        const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+        if (!databaseId) throw new Error("The Appwrite database is not configured.");
+        const channels = [
+          Channel.tablesdb(databaseId).table(TABLES.occurrences).row(),
+          Channel.tablesdb(databaseId).table(TABLES.events).row(),
+          Channel.tablesdb(databaseId).table(TABLES.schedules).row(),
+          Channel.tablesdb(databaseId).table(TABLES.members).row(),
+        ];
+        subscription = await realtime.subscribe(channels, (event) => {
+          const changed = event.payload as { circleId?: string };
+          if (disposed || changed.circleId !== circle.id) return;
+          setLiveStatus("live");
+          setOccurrenceOverrides({});
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(() => startRefresh(() => router.refresh()), 120);
+        });
+        const renewAfterSeconds = Math.max(60, Number(payload.expiresIn ?? 3600) - 60);
+        renewalTimer = setTimeout(() => {
+          const currentSubscription = subscription;
+          const currentRealtime = realtime;
+          subscription = null;
+          realtime = null;
+          void Promise.allSettled([
+            currentSubscription?.unsubscribe(),
+            currentRealtime?.disconnect(),
+          ]).then(() => {
+            if (!disposed) void connect();
+          });
+        }, renewAfterSeconds * 1000);
+      } catch (error) {
+        if (!disposed) {
+          console.error("Unable to connect OneDose live updates", error);
+          setLiveStatus("offline");
+        }
+      }
+    }
+
+    void connect();
+    return () => {
+      disposed = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (renewalTimer) clearTimeout(renewalTimer);
+      void subscription?.unsubscribe();
+      void realtime?.disconnect();
+    };
+  }, [circle.id, router, startRefresh]);
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
@@ -181,6 +261,9 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             </div>
             <span><i className={dueCount ? "presence-dot--due" : ""} /> {dueCount ? `${dueCount} due now` : "All caught up"}</span>
           </div>
+          <span className={`live-sync live-sync--${liveStatus}`} role="status">
+            <i /> {liveStatus === "live" ? "Live" : liveStatus === "offline" ? "Offline" : liveStatus === "reconnecting" ? "Reconnecting" : "Connecting"}
+          </span>
           <button className="secondary-button" onClick={() => startRefresh(() => router.refresh())} disabled={isRefreshing}>
             <RefreshCw size={16} /> {isRefreshing ? "Refreshing…" : "Refresh live data"}
           </button>

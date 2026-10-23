@@ -90,6 +90,12 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .presence > span i { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 4px rgba(93,198,154,.14); position: relative; color: var(--mint); }
 .presence > span i::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: currentColor; opacity: .28; animation: dot-pulse 2.2s ease-out infinite; }
 .presence > span i.presence-dot--due { background: var(--coral); box-shadow: 0 0 0 4px rgba(233,108,87,.14); color: var(--coral); }
+.live-sync { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font: 600 10px var(--font-mono), monospace; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.live-sync i { width: 7px; height: 7px; border-radius: 50%; background: #a6afa9; }
+.live-sync--live i { background: var(--mint); box-shadow: 0 0 0 4px rgba(93,198,154,.14); }
+.live-sync--connecting i, .live-sync--reconnecting i { background: #d2a84e; animation: dot-pulse 1.4s ease-out infinite; }
+.live-sync--offline { color: #a64535; }
+.live-sync--offline i { background: var(--coral); }
 .avatar-stack { display: flex; }
 .avatar-stack .avatar + .avatar { margin-left: -8px; }
 
@@ -413,6 +419,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .topbar-mobile .logo-mark { width: 26px; height: 26px; }
   .presence .avatar-stack { display: none; }
   .presence > span { display: none; }
+  .live-sync { margin-left: auto; }
   .topbar .secondary-button { min-height: 38px; font-size: 12px; padding-inline: 11px; }
   .page-content { padding: 38px 19px 60px; }
   .page-heading { align-items: flex-start; flex-direction: column; margin-bottom: 25px; }

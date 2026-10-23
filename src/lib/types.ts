@@ -30,6 +30,7 @@ export type CareSchedule = {
 };
 
 export type CareCircle = {
+  id: string;
   recipient: string;
   timezone: string;
   dateLabel: string;

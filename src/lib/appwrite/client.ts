@@ -1,4 +1,4 @@
-import { Client, TablesDB } from "appwrite";
+import { Client, Realtime, TablesDB } from "appwrite";
 
 const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
 const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
@@ -12,3 +12,11 @@ if (endpoint && projectId) {
 }
 
 export const tables = new TablesDB(client);
+
+export function createRealtime(jwt: string) {
+  const realtimeClient = new Client();
+  if (endpoint && projectId) {
+    realtimeClient.setEndpoint(endpoint).setProject(projectId).setJWT(jwt);
+  }
+  return new Realtime(realtimeClient);
+}
