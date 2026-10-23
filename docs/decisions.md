@@ -54,12 +54,16 @@ that Team. The browser never supplies a trusted circle or membership role.
 
 **Status:** accepted
 
-An hourly Appwrite Function creates missing daily occurrences and evaluates due
-items. The owner selects a first contact and a delay. The first available
-contact receives the due reminder; if the action remains incomplete, every
-available caregiver receives the escalation. Availability and circle settings
-live in separate TablesDB tables so access membership remains an independent
-safety boundary. Each `occurrenceId:kind` pair claims one server-only delivery
+An Appwrite Function runs every five minutes to create missing daily occurrences
+and evaluate due items. The owner selects a first contact and a delay. The first
+available contact receives the due reminder, which starts the escalation timer;
+if the action remains incomplete when that timer expires, every available
+caregiver receives the escalation. Availability and circle settings
+determine routing. If the selected contact is unavailable, the available owner
+receives the first reminder; if neither is available, one available caregiver
+is selected deterministically before the later group escalation. Availability
+and circle settings live in separate TablesDB tables so access membership
+remains an independent safety boundary. Each `occurrenceId:kind` pair claims one server-only delivery
 row and one deterministic Messaging ID, so retries do not spam caregivers.
 
 ## 007 — authenticate Realtime with short-lived user tokens

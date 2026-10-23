@@ -14,11 +14,11 @@ const [{ getServerAppwrite }, { runReminderSweep, TABLES }] = await Promise.all(
 const { databaseId, tables } = getServerAppwrite();
 const now = new Date();
 const suffix = Date.now().toString(36);
-const occurrenceIds = [`rem_due_${suffix}`, `rem_late_${suffix}`, `rem_old_${suffix}`];
+const occurrenceIds = [`rem_due_${suffix}`, `rem_old_${suffix}`];
 const scheduleId = `rem_sched_${suffix}`;
 const circleId = `rem_circle_${suffix}`;
 const teamId = `rem_team_${suffix}`;
-const users = [`rem_owner_${suffix}`, `rem_carer_${suffix}`, `rem_off_${suffix}`];
+const users = [`rem_owner_${suffix}`, `rem_primary_${suffix}`, `rem_carer_a_${suffix}`, `rem_carer_b_${suffix}`];
 const memberIds = users.map((_, index) => `rem_mem_${index}_${suffix}`);
 const preferenceIds = users.map((_, index) => `rem_pref_${index}_${suffix}`);
 const settingsId = `rem_set_${suffix}`;
@@ -67,15 +67,14 @@ try {
       circleId, userId: users[index], role: index === 0 ? "owner" : "caregiver", status: "active", lastMutationAt: null,
     }, permissions: [] });
     await tables.createRow({ databaseId, tableId: TABLES.caregiverPreferences, rowId: preferenceIds[index], data: {
-      circleId, userId: users[index], availability: index === 2 ? "unavailable" : "available", updatedAt: now.toISOString(),
+      circleId, userId: users[index], availability: index < 2 ? "unavailable" : "available", updatedAt: now.toISOString(),
     }, permissions: [] });
   }
   await tables.createRow({ databaseId, tableId: TABLES.circleSettings, rowId: settingsId, data: {
-    circleId, primaryUserId: users[0], escalationMinutes: 60, updatedAt: now.toISOString(),
+    circleId, primaryUserId: users[1], escalationMinutes: 15, updatedAt: now.toISOString(),
   }, permissions: [] });
   await createOccurrence(occurrenceIds[0], new Date(now.getTime() - 5 * 60_000));
-  await createOccurrence(occurrenceIds[1], new Date(now.getTime() - 90 * 60_000));
-  await createOccurrence(occurrenceIds[2], new Date(now.getTime() - 26 * 60 * 60_000));
+  await createOccurrence(occurrenceIds[1], new Date(now.getTime() - 26 * 60 * 60_000));
 
   const options = {
     tables,
@@ -98,7 +97,14 @@ try {
     runReminderSweep(options),
     runReminderSweep(options),
   ]);
-  const third = await runReminderSweep(options);
+  const waiting = await runReminderSweep(options);
+  const escalatedAt = new Date(now.getTime() + 16 * 60_000);
+  const escalationOptions = { ...options, now: escalatedAt };
+  const [escalated, competingEscalation] = await Promise.all([
+    runReminderSweep(escalationOptions),
+    runReminderSweep(escalationOptions),
+  ]);
+  const retry = await runReminderSweep(escalationOptions);
   const rows = await deliveries();
 
   assert.equal(rows.length, 2, "each occurrence and reminder level must have one delivery record");
@@ -106,9 +112,12 @@ try {
   assert.ok(rows.every((row) => row.status === "dry_run"), "the test must not send email");
   assert.equal(rows.find((row) => row.kind === "due")?.recipientCount, 1, "only the first available contact receives the due reminder");
   assert.equal(rows.find((row) => row.kind === "overdue")?.recipientCount, 2, "the escalation reaches every available caregiver");
-  assert.equal(first.dryRun + concurrent.dryRun, 2, "concurrent sweeps must claim each reminder once");
-  assert.equal(first.duplicate + concurrent.duplicate, 2, "the competing sweep must observe both claims");
-  assert.equal(third.duplicate, 2, "a retry must not create another delivery");
+  assert.equal(first.dryRun + concurrent.dryRun, 1, "concurrent sweeps must claim the first reminder once");
+  assert.equal(first.duplicate + concurrent.duplicate, 1, "the competing sweep must observe the due claim");
+  assert.equal(waiting.waiting, 1, "the worker must wait from the first reminder before escalating");
+  assert.equal(escalated.dryRun + competingEscalation.dryRun, 1, "concurrent sweeps must claim the escalation once");
+  assert.equal(escalated.duplicate + competingEscalation.duplicate, 1, "the competing sweep must observe the escalation claim");
+  assert.equal(retry.duplicate, 1, "a retry must not create another delivery");
 
   console.log("OneDose reminder proof passed");
   console.table({
@@ -116,9 +125,10 @@ try {
     dueReminders: rows.filter((row) => row.kind === "due").length,
     overdueEscalations: rows.filter((row) => row.kind === "overdue").length,
     duplicateDeliveryPrevented: true,
-    previousDayIgnored: !rows.some((row) => row.occurrenceId === occurrenceIds[2]),
-    unavailableCaregiverExcluded: true,
-    primaryContactReceivesFirstAlert: true,
+    previousDayIgnored: !rows.some((row) => row.occurrenceId === occurrenceIds[1]),
+    unavailableCaregiversExcluded: true,
+    unavailableContactFallsBackToOne: true,
+    escalationStartsAfterFirstReminder: true,
   });
 } finally {
   for (const row of await deliveries()) {

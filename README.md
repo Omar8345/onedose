@@ -27,7 +27,7 @@ The current foundation includes:
 - owner-configured first-contact and overdue escalation rules
 - transactional onboarding for a user's first circle and daily action
 - owner-managed daily actions with pause and resume controls
-- an hourly Appwrite Function for daily generation, due reminders, and overdue escalation
+- a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
 

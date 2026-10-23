@@ -241,8 +241,20 @@ async function finishDelivery(tables, databaseId, deliveryId, data) {
   });
 }
 
+async function deliveryFor(tables, databaseId, occurrenceId, kind) {
+  try {
+    return await tables.getRow({
+      databaseId,
+      tableId: TABLES.notifications,
+      rowId: stableId("ntf", `${occurrenceId}:${kind}`),
+    });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 404) return null;
+    throw error;
+  }
+}
+
 async function processOccurrence({ tables, messaging, databaseId, circle, confirmedUserIds, schedules, occurrence, now, overdueMinutes, appUrl, dryRun }) {
-  const ageMs = now.getTime() - Date.parse(occurrence.dueAt);
   const [members, preferences, settingsRows] = await Promise.all([
     listAllRows(tables, databaseId, TABLES.members, [
       Query.equal("circleId", [circle.$id]),
@@ -253,15 +265,23 @@ async function processOccurrence({ tables, messaging, databaseId, circle, confir
   ]);
   const settings = settingsRows[0];
   const delayMinutes = settings?.escalationMinutes ?? overdueMinutes;
-  const kind = ageMs >= delayMinutes * 60_000 ? "overdue" : "due";
+  const dueDelivery = await deliveryFor(tables, databaseId, occurrence.$id, "due");
+  const dueWasDelivered = dueDelivery && ["sent", "dry_run"].includes(dueDelivery.status);
+  const firstReminderAt = dueDelivery?.sentAt || dueDelivery?.claimedAt;
+  if (dueWasDelivered && firstReminderAt && now.getTime() < Date.parse(firstReminderAt) + delayMinutes * 60_000) {
+    return { kind: "due", result: "waiting" };
+  }
+  const kind = dueWasDelivered ? "overdue" : "due";
   const unavailable = new Set(preferences.filter((item) => item.availability === "unavailable").map((item) => item.userId));
-  const availableUserIds = [...new Set(members
-    .map((member) => member.userId)
-    .filter((userId) => userId && confirmedUserIds.has(userId) && !unavailable.has(userId)))];
+  const availableMembers = members
+    .filter((member) => member.userId && confirmedUserIds.has(member.userId) && !unavailable.has(member.userId))
+    .sort((left, right) => Number(right.role === "owner") - Number(left.role === "owner") || left.userId.localeCompare(right.userId));
+  const availableUserIds = [...new Set(availableMembers.map((member) => member.userId))];
   const primaryUserId = settings?.primaryUserId;
-  const userIds = kind === "due" && primaryUserId && availableUserIds.includes(primaryUserId)
-    ? [primaryUserId]
-    : availableUserIds;
+  const firstContact = primaryUserId && availableUserIds.includes(primaryUserId)
+    ? primaryUserId
+    : availableUserIds[0];
+  const userIds = kind === "due" ? (firstContact ? [firstContact] : []) : availableUserIds;
   const claim = await claimDelivery(tables, databaseId, occurrence, kind, userIds.length, now);
   if (!claim.claimed) return { kind, result: "duplicate" };
 
@@ -333,7 +353,7 @@ export async function runReminderSweep({
 }) {
   const circles = await listAllRows(tables, databaseId, TABLES.circles, [Query.isNull("archivedAt")]);
   const onlyIds = onlyOccurrenceIds ? new Set(onlyOccurrenceIds) : null;
-  const summary = { circles: circles.length, created: 0, due: 0, overdue: 0, sent: 0, dryRun: 0, duplicate: 0, failed: 0 };
+  const summary = { circles: circles.length, created: 0, due: 0, overdue: 0, waiting: 0, sent: 0, dryRun: 0, duplicate: 0, failed: 0 };
 
   for (const circle of circles) {
     const confirmedUserIds = await confirmedTeamUserIds(teams, circle.teamId);
