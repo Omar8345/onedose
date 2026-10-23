@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     "A shared care handoff that prevents duplicate completion records.",
   icons: {
-    icon: "/icon.svg",
+    icon: "/onedose-icon.png",
   },
 };
 
