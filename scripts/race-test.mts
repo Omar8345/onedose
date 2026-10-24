@@ -6,8 +6,9 @@ import { Query, type Models } from "node-appwrite";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-const [{ completeOccurrence }, { getCareCircle }, { getServerAppwrite }, { stableRowId }, { TABLES }] = await Promise.all([
+const [{ CompletionClaimedByAnotherError, completeOccurrence }, { claimOccurrence, releaseOccurrenceClaim }, { getCareCircle }, { getServerAppwrite }, { stableRowId }, { TABLES }] = await Promise.all([
   import("../src/lib/data/complete-occurrence"),
+  import("../src/lib/data/manage-occurrence-claim"),
   import("../src/lib/data/get-care-circle"),
   import("../src/lib/appwrite/server"),
   import("../src/lib/domain/ids"),
@@ -38,7 +39,8 @@ async function removeRows(tableId: string, rows: Models.Row[]) {
 
 async function cleanup() {
   if (!setupComplete || process.env.KEEP_RACE_DATA === "1") return;
-  const [events, commands, notifications] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands), rowsFor(TABLES.notifications)]);
+  const [events, commands, notifications, claims] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands), rowsFor(TABLES.notifications), rowsFor(TABLES.claims)]);
+  await removeRows(TABLES.claims, claims.rows);
   await removeRows(TABLES.notifications, notifications.rows);
   await removeRows(TABLES.commands, commands.rows);
   await removeRows(TABLES.events, events.rows);
@@ -95,11 +97,49 @@ try {
   assert.equal(ownerBefore.alertActivity.length, 1, "the owner must see the delivery ledger");
   assert.equal(caregiverBefore.alertActivity.length, 0, "caregivers must not receive delivery metadata");
 
+  console.log(`Launching ${REQUEST_COUNT} simultaneous handling claims...`);
+  const claimResults = await Promise.all(Array.from({ length: REQUEST_COUNT }, (_, index) => (
+    claimOccurrence(occurrenceId, actors[index % actors.length])
+  )));
+  const wonClaims = claimResults.filter((result) => result.kind === "claimed");
+  const blockedClaims = claimResults.filter((result) => result.kind === "already_claimed");
+  assert.equal(wonClaims.length, 1, "exactly one caregiver must claim the action");
+  assert.equal(blockedClaims.length, REQUEST_COUNT - 1, "all other claim attempts must see the winner");
+  const firstClaimWinner = wonClaims[0]?.occurrence.claimedBy;
+  assert.ok(firstClaimWinner, "the winning caregiver must be stored on the occurrence");
+  const released = await releaseOccurrenceClaim(occurrenceId, firstClaimWinner);
+  assert.equal(released.kind, "released", "the winning caregiver must be able to release the action");
+  const secondCaregiver = actors.find((actor) => actor !== firstClaimWinner);
+  assert.ok(secondCaregiver);
+  const reassigned = await claimOccurrence(occurrenceId, secondCaregiver);
+  assert.equal(reassigned.kind, "claimed", "another caregiver must be able to claim after release");
+  await tables.updateRow({
+    databaseId,
+    tableId: TABLES.claims,
+    rowId: stableRowId("clm", occurrenceId),
+    data: { expiresAt: new Date(Date.now() - 60_000).toISOString() },
+  });
+  const expiredTakeover = await claimOccurrence(occurrenceId, firstClaimWinner);
+  assert.equal(expiredTakeover.kind, "claimed", "an expired handling lease must be replaceable");
+  const claimWinner = expiredTakeover.occurrence.claimedBy;
+  assert.ok(claimWinner);
+  await assert.rejects(
+    completeOccurrence({
+      occurrenceId,
+      actorId: secondCaregiver,
+      idempotencyKey: `blocked-${runId}-request`,
+      outcome: "completed",
+      occurredAt: dueAt,
+    }),
+    CompletionClaimedByAnotherError,
+    "a caregiver who does not own the live claim must be blocked",
+  );
+
   console.log(`Two authenticated caregivers see ${occurrenceId}. Launching ${REQUEST_COUNT} simultaneous requests...`);
   const startedAt = performance.now();
   const results = await Promise.all(Array.from({ length: REQUEST_COUNT }, (_, index) => completeOccurrence({
     occurrenceId,
-    actorId: actors[index % actors.length],
+    actorId: claimWinner,
     idempotencyKey: `race-${runId}-${String(index).padStart(2, "0")}-request`,
     outcome: "completed",
     note: `Concurrent request ${index + 1}`,
@@ -119,14 +159,14 @@ try {
 
   assert.equal(accepted.length, 1, "exactly one request must be accepted");
   assert.equal(conflicts.length, REQUEST_COUNT - 1, "every other request must observe the winner");
-  assert.equal(occurrence.version, 1);
+  assert.equal(occurrence.version, 5);
   assert.equal(events.rows.length, 1);
   assert.equal(commands.rows.length, 1);
   assert.equal(ownerAfter.occurrences.find((item) => item.id === occurrenceId)?.status, "completed");
   assert.equal(caregiverAfter.occurrences.find((item) => item.id === occurrenceId)?.status, "completed");
 
   console.log("\nOneDose concurrency proof passed");
-  console.table({ requests: REQUEST_COUNT, authenticatedCaregiverViews: 2, accepted: accepted.length, conflicts: conflicts.length, auditEvents: events.rows.length, commandReceipts: commands.rows.length, finalVersion: occurrence.version, winner: occurrence.completedBy, converged: true, elapsedMs });
+  console.table({ claimRequests: REQUEST_COUNT, acceptedClaims: wonClaims.length, blockedClaims: blockedClaims.length, releaseVerified: true, expiredTakeoverVerified: true, nonClaimantCompletionBlocked: true, completionRequests: REQUEST_COUNT, authenticatedCaregiverViews: 2, accepted: accepted.length, conflicts: conflicts.length, auditEvents: events.rows.length, commandReceipts: commands.rows.length, finalVersion: occurrence.version, winner: occurrence.completedBy, converged: true, elapsedMs });
 } finally {
   await cleanup();
 }

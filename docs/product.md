@@ -26,8 +26,9 @@ The demonstration uses synthetic people and schedules.
 2. The caregiver accepts the emailed link and confirms their identity with OTP.
 3. Both caregivers open the shared Today view.
 4. One selects a due action and reviews its instructions.
-5. They record it as completed, skipped, refused, or unavailable.
-6. Appwrite commits the occurrence state and audit event together.
+5. One caregiver claims the action before performing it; every other session sees who is handling it.
+6. They record it as completed, skipped, refused, or unavailable.
+7. Appwrite commits the occurrence state and audit event together.
 7. Every connected caregiver receives the resulting state.
 8. A later correction adds history instead of rewriting it.
 9. Caregivers can pause alerts while unavailable without losing circle access.
@@ -37,6 +38,7 @@ The demonstration uses synthetic people and schedules.
 ## Safety invariants
 
 - A scheduled occurrence has no more than one active completion.
+- A due occurrence has no more than one active 15-minute handling lease.
 - Every mutation has an idempotency key.
 - A successful completion and its audit event are committed atomically.
 - Corrections never erase the original event.

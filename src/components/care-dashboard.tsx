@@ -44,6 +44,17 @@ type CompletionResponse = {
   };
 };
 
+type ClaimResponse = {
+  kind: "claimed" | "already_claimed" | "already_recorded" | "released" | "not_claimed";
+  occurrence: {
+    id: string;
+    status: string;
+    claimedBy: string | null;
+    claimedAt: string | null;
+    claimExpiresAt: string | null;
+  };
+};
+
 const OUTCOME_LABELS: Record<RecordedOutcome, string> = {
   completed: "Completed",
   skipped: "Skipped",
@@ -82,6 +93,8 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [scheduleToRemove, setScheduleToRemove] = useState<CareSchedule | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("connecting");
   const [isRefreshing, startRefresh] = useTransition();
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [coordinationError, setCoordinationError] = useState("");
 
   const occurrences = circle.occurrences.map((item) => occurrenceOverrides[item.id] ?? item);
   const dueCount = occurrences.filter((item) => item.status === "due" || item.status === "overdue").length;
@@ -126,6 +139,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         const channels = [
           Channel.team(circle.teamId),
           Channel.tablesdb(databaseId).table(TABLES.occurrences).row(),
+          Channel.tablesdb(databaseId).table(TABLES.claims).row(),
           Channel.tablesdb(databaseId).table(TABLES.events).row(),
           Channel.tablesdb(databaseId).table(TABLES.schedules).row(),
           Channel.tablesdb(databaseId).table(TABLES.members).row(),
@@ -235,6 +249,40 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
     setErrorMessage("");
   };
 
+  async function updateClaim(occurrence: Occurrence, method: "POST" | "DELETE") {
+    setClaimingId(occurrence.id);
+    setCoordinationError("");
+    try {
+      const response = await fetch(`/api/occurrences/${occurrence.id}/claim`, { method });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The care action could not be updated.");
+      const result = payload as ClaimResponse;
+      if (result.kind === "already_recorded") {
+        startRefresh(() => router.refresh());
+        return;
+      }
+      const claimIsMine = result.occurrence.claimedBy === viewer.id;
+      setOccurrenceOverrides((items) => ({
+        ...items,
+        [occurrence.id]: {
+          ...occurrence,
+          claimedBy: result.occurrence.claimedBy ?? undefined,
+          claimedByName: result.occurrence.claimedBy ? (claimIsMine ? "You" : "Another caregiver") : undefined,
+          claimedAt: result.occurrence.claimedAt
+            ? new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(result.occurrence.claimedAt))
+            : undefined,
+          claimExpiresAt: result.occurrence.claimExpiresAt ?? undefined,
+          claimIsMine: result.occurrence.claimedBy ? claimIsMine : undefined,
+        },
+      }));
+      startRefresh(() => router.refresh());
+    } catch (error) {
+      setCoordinationError(error instanceof Error ? error.message : "The care action could not be updated.");
+    } finally {
+      setClaimingId(null);
+    }
+  }
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.refresh();
@@ -330,6 +378,10 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
             circle={circle}
             occurrences={occurrences}
             onComplete={openCompletion}
+            onClaim={(occurrence) => updateClaim(occurrence, "POST")}
+            onRelease={(occurrence) => updateClaim(occurrence, "DELETE")}
+            claimingId={claimingId}
+            coordinationError={coordinationError}
             onOpenHandoff={() => setView("handoff")}
           />
         ) : view === "handoff" ? (
@@ -1013,11 +1065,19 @@ function TodayView({
   circle,
   occurrences,
   onComplete,
+  onClaim,
+  onRelease,
+  claimingId,
+  coordinationError,
   onOpenHandoff,
 }: {
   circle: CareCircle;
   occurrences: Occurrence[];
   onComplete: (occurrence: Occurrence) => void;
+  onClaim: (occurrence: Occurrence) => void;
+  onRelease: (occurrence: Occurrence) => void;
+  claimingId: string | null;
+  coordinationError: string;
   onOpenHandoff: () => void;
 }) {
   const dueCount = occurrences.filter((item) => item.status === "due" || item.status === "overdue").length;
@@ -1036,6 +1096,8 @@ function TodayView({
         <div className="timezone"><Clock3 size={15} /> {circle.timezone}</div>
       </div>
 
+      {coordinationError ? <p className="coordination-error" role="alert">{coordinationError}</p> : null}
+
       {focus ? <section className={`focus-card ${focus.status === "overdue" ? "focus-card--overdue" : ""}`}>
         <div className="focus-copy">
           <span className="section-kicker">Next up</span>
@@ -1048,10 +1110,9 @@ function TodayView({
           </span>
           <h2>{focus.title}</h2>
           <p>{focus.detail}</p>
+          {focus.claimedByName ? <small className="claim-note">{focus.claimIsMine ? "You’re handling this" : `${focus.claimedByName} is handling this`} · held for 15 minutes</small> : null}
         </div>
-        <button className="primary-button" onClick={() => onComplete(focus)}>
-          Record outcome <ArrowRight size={18} />
-        </button>
+        <ClaimAction occurrence={focus} busy={claimingId === focus.id} onClaim={onClaim} onRelease={onRelease} onComplete={onComplete} featured />
       </section> : (
         <section className="focus-card focus-card--complete">
           <div className="focus-complete-icon"><CheckCircle2 size={28} /></div>
@@ -1070,7 +1131,7 @@ function TodayView({
           </div>
           <div className="schedule-list">
             {occurrences.map((item) => (
-              <ScheduleRow key={item.id} item={item} onComplete={() => onComplete(item)} />
+              <ScheduleRow key={item.id} item={item} busy={claimingId === item.id} onComplete={() => onComplete(item)} onClaim={() => onClaim(item)} onRelease={() => onRelease(item)} />
             ))}
           </div>
         </section>
@@ -1098,7 +1159,31 @@ function TodayView({
   );
 }
 
-function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () => void }) {
+function ClaimAction({ occurrence, busy, onClaim, onRelease, onComplete, featured = false }: {
+  occurrence: Occurrence;
+  busy: boolean;
+  onClaim: (occurrence: Occurrence) => void;
+  onRelease: (occurrence: Occurrence) => void;
+  onComplete: (occurrence: Occurrence) => void;
+  featured?: boolean;
+}) {
+  if (isRecordedOutcome(occurrence.status)) {
+    return <button className={featured ? "primary-button" : "row-action"} onClick={() => onComplete(occurrence)}>Correct <ArrowRight size={15} /></button>;
+  }
+  if (occurrence.status === "upcoming") return null;
+  if (occurrence.claimIsMine) {
+    return <div className={featured ? "claim-actions claim-actions--featured" : "claim-actions"}>
+      <button className={featured ? "primary-button" : "row-action"} onClick={() => onComplete(occurrence)}>Record outcome <ArrowRight size={15} /></button>
+      <button className="claim-release" disabled={busy} onClick={() => onRelease(occurrence)}>{busy ? "Releasing…" : "Release"}</button>
+    </div>;
+  }
+  if (occurrence.claimedBy) {
+    return <button className={featured ? "primary-button" : "row-action"} disabled>{occurrence.claimedByName ?? "Another caregiver"} is handling</button>;
+  }
+  return <button className={featured ? "primary-button" : "row-action"} disabled={busy} onClick={() => onClaim(occurrence)}>{busy ? "Claiming…" : "I’m handling this"} <ArrowRight size={15} /></button>;
+}
+
+function ScheduleRow({ item, busy, onComplete, onClaim, onRelease }: { item: Occurrence; busy: boolean; onComplete: () => void; onClaim: () => void; onRelease: () => void }) {
   const recorded = isRecordedOutcome(item.status);
   return (
     <article className={`schedule-row schedule-row--${item.status}`}>
@@ -1113,8 +1198,9 @@ function ScheduleRow({ item, onComplete }: { item: Occurrence; onComplete: () =>
         </div>
         <p>{item.detail}</p>
         {item.completedBy ? <small>Recorded by {item.completedBy} · {item.completedAt}</small> : null}
+        {!recorded && item.claimedByName ? <small className="claim-note">{item.claimIsMine ? "You’re handling this" : `${item.claimedByName} is handling this`} · held for 15 minutes</small> : null}
       </div>
-      {item.status !== "upcoming" ? <button className="row-action" onClick={onComplete}>{recorded ? "Correct" : "Record"} <ArrowRight size={15} /></button> : null}
+      <ClaimAction occurrence={item} busy={busy} onClaim={onClaim} onRelease={onRelease} onComplete={onComplete} />
     </article>
   );
 }

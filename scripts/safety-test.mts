@@ -8,10 +8,12 @@ loadEnvConfig(process.cwd());
 
 const [
   { CompletionForbiddenError, CompletionInputConflictError, completeOccurrence },
+  { claimOccurrence },
   { getServerAppwrite },
   { TABLES },
 ] = await Promise.all([
   import("../src/lib/data/complete-occurrence"),
+  import("../src/lib/data/manage-occurrence-claim"),
   import("../src/lib/appwrite/server"),
   import("../src/lib/domain/schema"),
 ]);
@@ -72,6 +74,8 @@ try {
     note: "Safety proof",
     occurredAt: dueAt,
   };
+  const claim = await claimOccurrence(occurrenceId, input.actorId);
+  assert.equal(claim.kind, "claimed", "the authorized caregiver must claim the action first");
   const accepted = await completeOccurrence(input);
   const replayed = await completeOccurrence(input);
   await assert.rejects(
@@ -115,7 +119,7 @@ try {
     relatedRows(TABLES.commands),
   ]);
   assert.equal(replayed.kind, "replayed");
-  assert.equal(occurrence.version, 2);
+  assert.equal(occurrence.version, 3);
   assert.equal(occurrence.activeEventId, corrected.eventId);
   assert.equal(events.rows.length, 2);
   assert.equal(commands.rows.length, 2);

@@ -10,6 +10,7 @@ import {
   type CompletionInput,
   type CompletionResult,
   type MemberRow,
+  type OccurrenceClaimRow,
   type OccurrenceRow,
 } from "@/lib/domain/schema";
 import { stableHash, stableRowId } from "@/lib/domain/ids";
@@ -28,6 +29,20 @@ export class CompletionForbiddenError extends Error {
   constructor() {
     super("The caregiver is not allowed to update this care circle.");
     this.name = "CompletionForbiddenError";
+  }
+}
+
+export class CompletionClaimRequiredError extends Error {
+  constructor() {
+    super("Claim this action before recording its outcome.");
+    this.name = "CompletionClaimRequiredError";
+  }
+}
+
+export class CompletionClaimedByAnotherError extends Error {
+  constructor() {
+    super("Another caregiver is handling this action.");
+    this.name = "CompletionClaimedByAnotherError";
   }
 }
 
@@ -115,6 +130,23 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       return { kind: "already_recorded", occurrence };
     }
 
+    let activeClaim: OccurrenceClaimRow | null = null;
+    if (!isCorrection) {
+      try {
+        activeClaim = await tables.getRow<OccurrenceClaimRow>({
+          databaseId,
+          tableId: TABLES.claims,
+          rowId: stableRowId("clm", occurrence.$id),
+          transactionId: transaction.$id,
+        });
+      } catch (error) {
+        if (isMissing(error)) throw new CompletionClaimRequiredError();
+        throw error;
+      }
+      if (Date.parse(activeClaim.expiresAt) <= Date.now()) throw new CompletionClaimRequiredError();
+      if (activeClaim.actorId !== input.actorId) throw new CompletionClaimedByAnotherError();
+    }
+
     // Every contender writes the same immutable event row. Its unique row ID
     // makes Appwrite reject all but one concurrent completion transaction.
     const eventId = isCorrection
@@ -141,6 +173,9 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
         completedBy: input.actorId,
         completedAt: input.occurredAt,
         activeEventId: eventId,
+        claimedBy: null,
+        claimedAt: null,
+        claimExpiresAt: null,
         version: occurrence.version + 1,
       },
       transactionId: transaction.$id,
@@ -164,6 +199,15 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       permissions: [Permission.read(Role.team(occurrence.teamId))],
       transactionId: transaction.$id,
     });
+
+    if (activeClaim) {
+      await tables.deleteRow({
+        databaseId,
+        tableId: TABLES.claims,
+        rowId: activeClaim.$id,
+        transactionId: transaction.$id,
+      });
+    }
 
     await tables.createRow({
       databaseId,
@@ -195,13 +239,18 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       .updateTransaction({ transactionId: transaction.$id, rollback: true })
       .catch(() => undefined);
 
-    if (!isConflict(error)) throw error;
+    // A concurrent winner can remove the claim before another staged delete.
+    // Treat that missing-row race the same as a transaction conflict and read
+    // the committed outcome below.
+    if (!isConflict(error) && !isMissing(error)) throw error;
 
     const winner = await tables.getRow<OccurrenceRow>({
       databaseId,
       tableId: TABLES.occurrences,
       rowId: input.occurrenceId,
     });
+
+    if (winner.status === "due") throw new CompletionClaimRequiredError();
 
     return { kind: "already_recorded", occurrence: winner };
   }

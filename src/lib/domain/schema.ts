@@ -7,6 +7,7 @@ export const TABLES = {
   recipients: "care_recipients",
   schedules: "schedules",
   occurrences: "occurrences",
+  claims: "occurrence_claims",
   events: "audit_events",
   commands: "command_receipts",
   notifications: "notification_deliveries",
@@ -36,6 +37,9 @@ export type OccurrenceRow = Models.Row & {
   completedBy: string | null;
   completedAt: string | null;
   activeEventId: string | null;
+  claimedBy: string | null;
+  claimedAt: string | null;
+  claimExpiresAt: string | null;
   version: number;
 };
 
@@ -45,6 +49,14 @@ export type MemberRow = Models.Row & {
   role: "owner" | "caregiver" | "viewer";
   status: "active" | "revoked";
   lastMutationAt: string | null;
+};
+
+export type OccurrenceClaimRow = Models.Row & {
+  circleId: string;
+  occurrenceId: string;
+  actorId: string;
+  claimedAt: string;
+  expiresAt: string;
 };
 
 export type CaregiverPreferenceRow = Models.Row & {

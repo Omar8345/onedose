@@ -73,9 +73,23 @@ occurrence, so simultaneous caregivers cannot both commit.
 | `completedBy` | string(36), nullable | Winning caregiver |
 | `completedAt` | datetime, nullable | User-confirmed occurrence time |
 | `activeEventId` | string(36), nullable | Current audit event |
+| `claimedBy` | string(36), nullable | Caregiver currently handling the action |
+| `claimedAt` | datetime, nullable | When the current handling lease began |
+| `claimExpiresAt` | datetime, nullable | Lease expiry; another caregiver may claim afterward |
 | `version` | integer | Incremented by every accepted mutation |
 
-Indexes: unique composite `scheduleId,dueAt`; key `circleId,status,dueAt`.
+Indexes: unique composite `scheduleId,dueAt`; key `circleId,status,dueAt`; key
+`circleId,claimExpiresAt`.
+
+### Handling lease
+
+Before performing a due action, a caregiver selects **I’m handling this**.
+TablesDB serializes concurrent updates to the occurrence row, so one caregiver
+receives a 15-minute lease and every other session immediately sees who is
+handling it. The caregiver may release the lease, completion clears it, and an
+expired lease can be taken over. Initial completion requires a live lease owned
+by the authenticated caregiver; corrections remain append-only and do not need
+a lease.
 
 ### `audit_events`
 
@@ -95,6 +109,22 @@ Append-only history. Corrections create another event whose
 | `supersedesEventId` | string(36), nullable | Prior event for corrections |
 
 Indexes: key `circleId,recordedAt`; key `occurrenceId,recordedAt`.
+
+### `occurrence_claims`
+
+The deterministic row ID is derived from the occurrence ID. Creating this row
+is the database arbitration point for simultaneous **I’m handling this**
+requests, so only one transaction can own the active lease.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `circleId` | string(36) | Owning circle |
+| `occurrenceId` | string(36) | Due occurrence; unique |
+| `actorId` | string(36) | Caregiver holding the lease |
+| `claimedAt` | datetime | Lease start |
+| `expiresAt` | datetime | Lease expiry |
+
+Indexes: unique `occurrenceId`; key `circleId,expiresAt`.
 
 ### `command_receipts`
 
@@ -162,14 +192,15 @@ plan's hourly Function schedule.
 1. Return the existing receipt when an idempotency key has already committed.
 2. Start a short TablesDB transaction.
 3. Read the occurrence and active membership inside the transaction.
-4. Touch membership so a simultaneous revocation conflicts with the write.
-5. Update the contested occurrence row.
-6. Create an immutable audit event whose deterministic ID is derived from the
+4. Require an unexpired handling lease owned by the caregiver.
+5. Touch membership so a simultaneous revocation conflicts with the write.
+6. Update the contested occurrence row and clear its handling lease.
+7. Create an immutable audit event whose deterministic ID is derived from the
    occurrence. Concurrent contenders therefore claim the same unique row, so
    Appwrite can commit only one of their transactions.
-7. Create the winning request's private command receipt.
-8. Commit all operations together.
-9. On a `409` conflict, fetch the occurrence and return the winning state.
+8. Create the winning request's private command receipt.
+9. Commit all operations together.
+10. On a `409` conflict, fetch the occurrence and return the winning state.
 
 The free TablesDB tier supports up to 100 operations per transaction. This
 flow uses four staged writes.

@@ -11,6 +11,11 @@ export type Occurrence = {
   completedBy?: string;
   completedAt?: string;
   activeEventId?: string;
+  claimedBy?: string;
+  claimedByName?: string;
+  claimedAt?: string;
+  claimExpiresAt?: string;
+  claimIsMine?: boolean;
 };
 
 export type TimelineEvent = {

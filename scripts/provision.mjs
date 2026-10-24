@@ -121,11 +121,15 @@ const schema = [
       varchar("completedBy", 36, false),
       datetime("completedAt", false),
       varchar("activeEventId", 36, false),
+      varchar("claimedBy", 36, false),
+      datetime("claimedAt", false),
+      datetime("claimExpiresAt", false),
       integer("version"),
     ],
     indexes: [
       index("uniq_schedule_due", "unique", ["scheduleId", "dueAt"]),
       index("by_circle_status_due", "key", ["circleId", "status", "dueAt"]),
+      index("by_claim_expiry", "key", ["circleId", "claimExpiresAt"]),
     ],
   },
   {
@@ -145,6 +149,21 @@ const schema = [
     indexes: [
       index("by_circle_recorded", "key", ["circleId", "recordedAt"]),
       index("by_occurrence_recorded", "key", ["occurrenceId", "recordedAt"]),
+    ],
+  },
+  {
+    id: "occurrence_claims",
+    name: "Occurrence claims",
+    columns: [
+      varchar("circleId", 36),
+      varchar("occurrenceId", 36),
+      varchar("actorId", 36),
+      datetime("claimedAt"),
+      datetime("expiresAt"),
+    ],
+    indexes: [
+      index("uniq_occurrence", "unique", ["occurrenceId"]),
+      index("by_circle_expiry", "key", ["circleId", "expiresAt"]),
     ],
   },
   {

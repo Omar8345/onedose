@@ -46,6 +46,11 @@ export const demoCircle: CareCircle = {
       detail: "One scheduled action",
       instruction: "Record the outcome once the routine is complete.",
       status: "due",
+      claimedBy: "demo-omar",
+      claimedByName: "Omar",
+      claimedAt: "12:31 PM",
+      claimExpiresAt: "2026-10-19T08:46:00.000Z",
+      claimIsMine: true,
     },
     {
       id: "occ-evening-checkin",

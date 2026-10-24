@@ -27,6 +27,7 @@ The current foundation includes:
 - owner-configured first-contact and overdue escalation rules
 - an owner-only alert activity ledger backed by TablesDB delivery records
 - transactional onboarding for a user's first circle and daily action
+- 15-minute handling leases that stop two caregivers from performing the same action
 - owner-managed daily actions with pause, resume, and history-preserving removal
 - a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
@@ -123,7 +124,8 @@ Deploy that folder as an Appwrite Function with a 60-minute interval, grant
 `rows.read`, `rows.write`, `messages.write`, and `teams.read`, and configure an
 Appwrite email provider. Full settings are in the function's README.
 
-The race test confirms two caregiver views see the same due occurrence, then sends
+The race test confirms two caregiver views see the same due occurrence, sends
+25 simultaneous handling claims and accepts exactly one, then sends
 25 completion requests at the same time through the real completion service.
 It requires exactly one accepted request, one audit event, one command receipt,
 and a final version of one. The other 24 requests must return the recorded

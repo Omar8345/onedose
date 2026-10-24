@@ -9,6 +9,7 @@ import {
   type CaregiverPreferenceRow,
   type CircleSettingsRow,
   type MemberRow,
+  type OccurrenceClaimRow,
   type OccurrenceRow,
 } from "@/lib/domain/schema";
 import { stableRowId } from "@/lib/domain/ids";
@@ -53,11 +54,12 @@ function formatTime(value: string, timezone: string) {
 export async function getCareCircle(circleId: string, viewer: { id: string; name: string }): Promise<CareCircle> {
   const { databaseId, tables, teams } = getServerAppwrite();
   const circle = await tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId });
-  const [recipients, schedules, circleMembers, occurrences, events, teamMemberships, preferences, settings, notifications] = await Promise.all([
+  const [recipients, schedules, circleMembers, occurrences, claims, events, teamMemberships, preferences, settings, notifications] = await Promise.all([
     tables.listRows<RecipientRow>({ databaseId, tableId: TABLES.recipients, queries: [Query.equal("circleId", [circleId]), Query.limit(25)], total: false }),
     tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<MemberRow>({ databaseId, tableId: TABLES.members, queries: [Query.equal("circleId", [circleId]), Query.equal("status", ["active"]), Query.limit(25)], total: false }),
     tables.listRows<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, queries: [Query.equal("circleId", [circleId]), Query.orderAsc("dueAt"), Query.limit(100)], total: false }),
+    tables.listRows<OccurrenceClaimRow>({ databaseId, tableId: TABLES.claims, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<EventRow>({ databaseId, tableId: TABLES.events, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("recordedAt"), Query.limit(50)], total: false }),
     teams.listMemberships({ teamId: circle.teamId, total: false }),
     tables.listRows<CaregiverPreferenceRow>({ databaseId, tableId: TABLES.caregiverPreferences, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
@@ -68,6 +70,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const scheduleById = new Map(schedules.rows.map((schedule) => [schedule.$id, schedule]));
   const todayKey = localDateKey(new Date(), circle.timezone);
   const occurrenceById = new Map(occurrences.rows.map((occurrence) => [occurrence.$id, occurrence]));
+  const claimByOccurrenceId = new Map(claims.rows.map((claim) => [claim.occurrenceId, claim]));
   const recipient = recipients.rows[0];
   const teamMemberNames = new Map(
     teamMemberships.memberships
@@ -85,6 +88,12 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     const schedule = scheduleById.get(row.scheduleId);
     if (!schedule || schedule.archivedAt || !schedule.active || localDateKey(new Date(row.dueAt), circle.timezone) !== todayKey) return [];
     const recorded = row.status !== "due";
+    const claim = claimByOccurrenceId.get(row.$id);
+    const claimIsActive = Boolean(
+      !recorded
+      && claim
+      && Date.parse(claim.expiresAt) > Date.now(),
+    );
     return [{
       id: row.$id,
       time: formatTime(row.dueAt, schedule.timezone),
@@ -101,6 +110,11 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       completedBy: row.completedBy ? person(row.completedBy) : undefined,
       completedAt: row.completedAt ? formatTime(row.completedAt, schedule.timezone) : undefined,
       activeEventId: row.activeEventId ?? undefined,
+      claimedBy: claimIsActive ? claim?.actorId : undefined,
+      claimedByName: claimIsActive && claim ? person(claim.actorId) : undefined,
+      claimedAt: claimIsActive && claim ? formatTime(claim.claimedAt, schedule.timezone) : undefined,
+      claimExpiresAt: claimIsActive ? claim?.expiresAt : undefined,
+      claimIsMine: claimIsActive && claim ? claim.actorId === viewer.id : undefined,
     }];
   });
 

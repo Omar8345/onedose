@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth/session";
 import {
   completeOccurrence,
+  CompletionClaimedByAnotherError,
+  CompletionClaimRequiredError,
   CompletionForbiddenError,
   CompletionInputConflictError,
 } from "@/lib/data/complete-occurrence";
@@ -55,6 +57,9 @@ export async function POST(
     }
     if (error instanceof CompletionForbiddenError) {
       return Response.json({ message: error.message }, { status: 403 });
+    }
+    if (error instanceof CompletionClaimRequiredError || error instanceof CompletionClaimedByAnotherError) {
+      return Response.json({ message: error.message }, { status: 409 });
     }
     if (error instanceof CompletionInputConflictError) {
       return Response.json({ message: error.message }, { status: 409 });

@@ -125,6 +125,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .focus-card .primary-button { transition: background-color .2s ease, box-shadow .2s ease; }
 .focus-card .primary-button:hover { background: white; transform: none; box-shadow: 0 8px 20px rgba(31,48,42,.16); }
 .focus-card .primary-button:active { transform: none; }
+.focus-card .primary-button:disabled { background: rgba(255,255,255,.18); color: rgba(255,255,255,.72); box-shadow: none; }
 .focus-card--complete { grid-template-columns: auto 1fr; align-items: center; gap: 30px; }
 .focus-card--complete .focus-details { border-left: 0; padding-left: 0; }
 .focus-complete-icon { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; background: #f5f8ef; color: var(--sage); box-shadow: 0 8px 18px rgba(20,58,46,.14); }
@@ -132,6 +133,15 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
 .secondary-button:hover { border-color: var(--sage); background: var(--sage-soft); color: var(--sage); }
 .text-button { background: transparent; color: var(--sage); padding: 8px; }
 .row-action { background: transparent; color: var(--coral); padding: 8px 0; }
+.row-action:disabled { color: var(--muted); cursor: default; }
+.claim-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.claim-actions--featured { position: relative; z-index: 1; justify-content: flex-end; }
+.claim-release { border: 0; background: transparent; color: inherit; cursor: pointer; font-weight: 650; padding: 8px; opacity: .78; }
+.claim-release:hover { opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
+.claim-release:disabled { cursor: default; opacity: .5; text-decoration: none; }
+.claim-note { display: block; margin-top: 9px; color: #dce9e1; font-size: 12px; font-weight: 650; }
+.schedule-copy .claim-note { color: var(--sage); }
+.coordination-error { margin: -10px 0 20px; padding: 12px 14px; border: 1px solid #e4b4aa; border-radius: 11px; background: var(--coral-soft); color: #8f3d30; }
 .wide-link { background: transparent; color: var(--sage); border-top: 1px solid var(--line); width: 100%; justify-content: space-between; padding: 17px 0 0; margin-top: 8px; }
 .icon-button { border-radius: 9px; width: 38px; height: 38px; background: transparent; color: inherit; }
 
@@ -504,6 +514,7 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .page-content { padding-inline: 34px; }
   .focus-card { grid-template-columns: 140px 1fr; }
   .focus-card > .primary-button { grid-column: 2; justify-self: start; }
+  .focus-card > .claim-actions, .focus-card > .claim-actions--featured { grid-column: 2; justify-self: start; }
   .focus-card--complete .focus-details { border-top: 0; padding-top: 0; }
   .content-grid { grid-template-columns: 1fr; }
   .activity-panel { display: none; }
@@ -547,11 +558,14 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(93, 198, 
   .focus-copy { width: fit-content; }
   .focus-details { border-left: 0; border-top: 1px solid rgba(255,255,255,.2); padding: 20px 0 0; }
   .focus-card > .primary-button { grid-column: 1; width: 100%; }
+  .focus-card > .claim-actions, .focus-card > .claim-actions--featured { grid-column: 1; width: 100%; justify-content: stretch; }
+  .claim-actions--featured .primary-button { flex: 1; }
   .focus-card--complete { grid-template-columns: 1fr; gap: 16px; }
   .focus-card--complete .focus-details { border-top: 0; padding-top: 0; }
   .content-grid { margin-top: 35px; }
   .schedule-row { grid-template-columns: 60px 24px 1fr; gap: 10px; min-height: 118px; }
   .schedule-row .row-action { grid-column: 3; justify-self: start; padding-top: 0; }
+  .schedule-row > .claim-actions { grid-column: 3; justify-self: start; }
   .status-pill { font-size: 9px; }
   .section-heading .text-button { font-size: 12px; }
   .dialog { padding: 28px 22px 22px; border-radius: 20px; }
