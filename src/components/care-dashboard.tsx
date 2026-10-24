@@ -23,10 +23,10 @@ import {
 } from "lucide-react";
 import { Channel, type RealtimeSubscription } from "appwrite";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { createRealtime } from "@/lib/appwrite/client";
 import { TABLES } from "@/lib/domain/schema";
-import type { CareCircle, CareSchedule, Occurrence, RecordedOutcome } from "@/lib/types";
+import type { CareCircle, CareRecipient, CareSchedule, Occurrence, RecordedOutcome } from "@/lib/types";
 
 type View = "today" | "handoff" | "schedules" | "caregivers";
 type DemoState = "idle" | "confirm" | "saving" | "saved" | "race" | "error";
@@ -90,6 +90,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [scheduleEditor, setScheduleEditor] = useState<CareSchedule | "new" | null>(null);
+  const [recipientEditor, setRecipientEditor] = useState<CareRecipient | "new" | null>(null);
   const [scheduleToRemove, setScheduleToRemove] = useState<CareSchedule | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("connecting");
   const [isRefreshing, startRefresh] = useTransition();
@@ -142,6 +143,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
           Channel.tablesdb(databaseId).table(TABLES.claims).row(),
           Channel.tablesdb(databaseId).table(TABLES.events).row(),
           Channel.tablesdb(databaseId).table(TABLES.schedules).row(),
+          Channel.tablesdb(databaseId).table(TABLES.recipients).row(),
           Channel.tablesdb(databaseId).table(TABLES.members).row(),
           Channel.tablesdb(databaseId).table(TABLES.caregiverPreferences).row(),
           Channel.tablesdb(databaseId).table(TABLES.circleSettings).row(),
@@ -389,7 +391,7 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
         ) : view === "caregivers" ? (
           <CaregiversView circle={circle} viewerId={viewer.id} />
         ) : (
-          <ScheduleView circle={circle} onEdit={setScheduleEditor} onRemove={setScheduleToRemove} />
+          <ScheduleView circle={circle} onEdit={setScheduleEditor} onRemove={setScheduleToRemove} onEditRecipient={setRecipientEditor} />
         )}
       </section>
 
@@ -435,7 +437,15 @@ export function CareDashboard({ circle, viewer }: { circle: CareCircle; viewer: 
       {scheduleEditor ? (
         <ScheduleDialog
           schedule={scheduleEditor === "new" ? null : scheduleEditor}
+          recipients={circle.recipients}
           onClose={() => setScheduleEditor(null)}
+        />
+      ) : null}
+      {recipientEditor ? (
+        <RecipientDialog
+          recipient={recipientEditor === "new" ? null : recipientEditor}
+          defaultTimezone={circle.timezone}
+          onClose={() => setRecipientEditor(null)}
         />
       ) : null}
       {scheduleToRemove ? (
@@ -752,10 +762,12 @@ function ScheduleView({
   circle,
   onEdit,
   onRemove,
+  onEditRecipient,
 }: {
   circle: CareCircle;
   onEdit: (schedule: CareSchedule | "new") => void;
   onRemove: (schedule: CareSchedule) => void;
+  onEditRecipient: (recipient: CareRecipient | "new") => void;
 }) {
   return (
     <div className="page-content schedule-view">
@@ -765,8 +777,33 @@ function ScheduleView({
           <h1>Daily actions</h1>
           <p>Each active action creates one fresh record every local day.</p>
         </div>
-        <button className="primary-button" onClick={() => onEdit("new")}><Plus size={18} /> Add action</button>
+        <div className="page-heading-actions">
+          <button className="secondary-button" onClick={() => onEditRecipient("new")}><UserPlus size={17} /> Add person</button>
+          <button className="primary-button" onClick={() => onEdit("new")} disabled={!circle.recipients.length}><Plus size={18} /> Add action</button>
+        </div>
       </div>
+
+      <section className="recipient-profiles" aria-labelledby="recipient-profiles-title">
+        <div className="section-heading">
+          <div><span className="eyebrow">People receiving care</span><h2 id="recipient-profiles-title">Care profiles</h2></div>
+          <span className="section-count">{circle.recipients.length}</span>
+        </div>
+        <div className="recipient-profile-grid">
+          {circle.recipients.map((recipient) => (
+            <article className="recipient-profile-card" key={recipient.id}>
+              <span className="avatar avatar--large recipient-avatar">{initials(recipient.displayName).slice(0, 1)}</span>
+              <div>
+                <h3>{recipient.displayName}</h3>
+                <p>{recipient.relationship || "Care recipient"}</p>
+                <small><Clock3 size={13} /> {recipient.timezone}</small>
+              </div>
+              <button className="secondary-button" type="button" onClick={() => onEditRecipient(recipient)}><Pencil size={15} /> Edit</button>
+              {recipient.careNotes ? <p className="recipient-care-notes">{recipient.careNotes}</p> : null}
+            </article>
+          ))}
+          {!circle.recipients.length ? <div className="schedule-empty"><UsersRound size={28} /><h2>No care profiles yet</h2><p>Add a person before creating daily actions.</p></div> : null}
+        </div>
+      </section>
 
       <div className="schedule-management-list">
         {circle.schedules.map((schedule) => (
@@ -779,6 +816,7 @@ function ScheduleView({
                   {schedule.active ? "Active" : "Paused"}
                 </span>
               </div>
+              <span className="recipient-label">{schedule.recipientName}</span>
               <p>{schedule.instruction || "No additional instructions."}</p>
             </div>
             <div className="schedule-management-actions">
@@ -805,12 +843,13 @@ function formatLocalTime(value: string) {
     .format(new Date(Date.UTC(2020, 0, 1, hour, minute)));
 }
 
-function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; onClose: () => void }) {
+function ScheduleDialog({ schedule, recipients, onClose }: { schedule: CareSchedule | null; recipients: CareRecipient[]; onClose: () => void }) {
   const router = useRouter();
   const [title, setTitle] = useState(schedule?.title ?? "");
   const [instruction, setInstruction] = useState(schedule?.instruction ?? "");
   const [localTime, setLocalTime] = useState(schedule?.localTime ?? "09:00");
   const [active, setActive] = useState(schedule?.active ?? true);
+  const [recipientId, setRecipientId] = useState(schedule?.recipientId ?? recipients[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
@@ -835,7 +874,7 @@ function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; 
       const response = await fetch(schedule ? `/api/schedules/${schedule.id}` : "/api/schedules", {
         method: schedule ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, instruction: instruction || undefined, localTime, active }),
+        body: JSON.stringify({ recipientId, title, instruction: instruction || undefined, localTime, active }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "The daily action could not be saved.");
@@ -854,6 +893,12 @@ function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; 
         <form onSubmit={save}>
           <span className="section-kicker">Daily schedule</span>
           <h2 id="schedule-title">{schedule ? "Edit daily action" : "Add a daily action"}</h2>
+          <label className="invite-field">
+            <span>For</span>
+            <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} required>
+              {recipients.map((recipient) => <option value={recipient.id} key={recipient.id}>{recipient.displayName}</option>)}
+            </select>
+          </label>
           <label className="invite-field">
             <span>Action name</span>
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Morning routine" required />
@@ -875,9 +920,89 @@ function ScheduleDialog({ schedule, onClose }: { schedule: CareSchedule | null; 
           {message ? <p className="form-error">{message}</p> : null}
           <div className="dialog-actions">
             <button className="secondary-button" type="button" onClick={close}>Cancel</button>
-            <button className="primary-button" disabled={saving || title.trim().length < 2}>
+            <button className="primary-button" disabled={saving || title.trim().length < 2 || !recipientId}>
               {saving ? "Saving…" : "Save action"}
             </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function RecipientDialog({ recipient, defaultTimezone, onClose }: { recipient: CareRecipient | null; defaultTimezone: string; onClose: () => void }) {
+  const router = useRouter();
+  const detectedTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || defaultTimezone, [defaultTimezone]);
+  const timezones = useMemo(() => {
+    const supported = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+    return [...new Set([recipient?.timezone, defaultTimezone, detectedTimezone, "UTC", ...supported].filter(Boolean) as string[])].sort();
+  }, [defaultTimezone, detectedTimezone, recipient?.timezone]);
+  const [displayName, setDisplayName] = useState(recipient?.displayName ?? "");
+  const [relationship, setRelationship] = useState(recipient?.relationship ?? "");
+  const [careNotes, setCareNotes] = useState(recipient?.careNotes ?? "");
+  const [timezone, setTimezone] = useState(recipient?.timezone ?? defaultTimezone);
+  const [saving, setSaving] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [closing, setClosing] = useState(false);
+
+  function close() { if (!saving && !archiving) setClosing(true); }
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch(recipient ? `/api/recipients/${recipient.id}` : "/api/recipients", {
+        method: recipient ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName, relationship: relationship || undefined, careNotes: careNotes || undefined, timezone }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The care profile could not be saved.");
+      setClosing(true);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The care profile could not be saved.");
+      setSaving(false);
+    }
+  }
+
+  async function archive() {
+    if (!recipient) return;
+    setArchiving(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/recipients/${recipient.id}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "The care profile could not be archived.");
+      setClosing(true);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The care profile could not be archived.");
+      setArchiving(false);
+    }
+  }
+
+  return (
+    <div className={`dialog-backdrop ${closing ? "dialog-backdrop--closing" : ""}`} role="presentation" onMouseDown={close} onAnimationEnd={() => { if (closing) onClose(); }}>
+      <section className={`dialog recipient-dialog ${closing ? "dialog--closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="recipient-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="dialog-close" type="button" onClick={close} aria-label="Close" disabled={saving || archiving}><X size={19} /></button>
+        <form onSubmit={save}>
+          <span className="section-kicker">Care profile</span>
+          <h2 id="recipient-dialog-title">{recipient ? `Edit ${recipient.displayName}` : "Add a person"}</h2>
+          <div className="field-grid">
+            <label className="invite-field"><span>Name</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Nora" required /></label>
+            <label className="invite-field"><span>Relationship <small>optional</small></span><input value={relationship} onChange={(event) => setRelationship(event.target.value)} placeholder="Parent" /></label>
+          </div>
+          <label className="invite-field"><span>Time zone</span><select value={timezone} onChange={(event) => setTimezone(event.target.value)}>{timezones.map((zone) => <option value={zone} key={zone}>{zone}{zone === detectedTimezone ? " (Detected)" : ""}</option>)}</select></label>
+          <label className="note-field schedule-note-field"><span>Care context <small>optional</small></span><textarea value={careNotes} onChange={(event) => setCareNotes(event.target.value)} maxLength={1000} placeholder="Stable context caregivers should know. Do not include dosing decisions." /></label>
+          {message ? <p className="form-error">{message}</p> : null}
+          <div className="dialog-actions recipient-dialog-actions">
+            {recipient ? <button className="text-button text-button--danger" type="button" disabled={saving || archiving} onClick={archive}>{archiving ? "Archiving…" : "Archive profile"}</button> : null}
+            <span />
+            <button className="secondary-button" type="button" onClick={close}>Cancel</button>
+            <button className="primary-button" disabled={saving || archiving || displayName.trim().length < 2}>{saving ? "Saving…" : "Save profile"}</button>
           </div>
         </form>
       </section>
@@ -1108,6 +1233,7 @@ function TodayView({
           <span className={`status-pill status-pill--${focus.status}`}>
             {focus.status === "overdue" ? "Overdue" : focus.status === "due" ? "Due now" : "Upcoming"}
           </span>
+          {circle.recipients.length > 1 ? <span className="recipient-label">{focus.recipientName}</span> : null}
           <h2>{focus.title}</h2>
           <p>{focus.detail}</p>
           {focus.claimedByName ? <small className="claim-note">{focus.claimIsMine ? "You’re handling this" : `${focus.claimedByName} is handling this`} · held for 15 minutes</small> : null}
@@ -1196,6 +1322,7 @@ function ScheduleRow({ item, busy, onComplete, onClaim, onRelease }: { item: Occ
             {occurrenceStatusLabel(item.status)}
           </span>
         </div>
+        <span className="recipient-label">{item.recipientName}</span>
         <p>{item.detail}</p>
         {item.completedBy ? <small>Recorded by {item.completedBy} · {item.completedAt}</small> : null}
         {!recorded && item.claimedByName ? <small className="claim-note">{item.claimIsMine ? "You’re handling this" : `${item.claimedByName} is handling this`} · held for 15 minutes</small> : null}

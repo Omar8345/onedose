@@ -104,6 +104,9 @@ export async function createCareCircle({
     await tables.createRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId, data: {
       circleId,
       displayName: input.recipientName,
+      relationship: null,
+      careNotes: null,
+      timezone: input.timezone,
       archivedAt: null,
     }, permissions: teamRead, transactionId: transaction.$id });
 

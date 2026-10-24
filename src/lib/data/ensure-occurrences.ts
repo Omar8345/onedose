@@ -37,7 +37,7 @@ export async function ensureTodayOccurrences(circleId: string, now = new Date())
   await Promise.all(schedules.rows.map(async (schedule) => {
     if (schedule.rrule !== "FREQ=DAILY") return;
     const dueAt = localTimeTodayAsUtc(schedule.localTime, schedule.timezone, now);
-    const dateKey = localDateKey(new Date(dueAt), circle.timezone);
+    const dateKey = localDateKey(new Date(dueAt), schedule.timezone);
     const rowId = stableRowId("occ", `${schedule.$id}:${dateKey}`);
 
     try {

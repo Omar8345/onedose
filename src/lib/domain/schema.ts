@@ -73,6 +73,15 @@ export type CircleSettingsRow = Models.Row & {
   updatedAt: string;
 };
 
+export type CareRecipientRow = Models.Row & {
+  circleId: string;
+  displayName: string;
+  relationship: string | null;
+  careNotes: string | null;
+  timezone: string | null;
+  archivedAt: string | null;
+};
+
 export type CommandReceiptRow = Models.Row & {
   occurrenceId: string;
   actorId: string;

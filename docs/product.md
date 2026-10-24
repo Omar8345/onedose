@@ -23,16 +23,18 @@ The demonstration uses synthetic people and schedules.
 ## Primary flow
 
 1. An owner invites a caregiver through their private Appwrite Team.
-2. The caregiver accepts the emailed link and confirms their identity with OTP.
-3. Both caregivers open the shared Today view.
-4. One selects a due action and reviews its instructions.
-5. One caregiver claims the action before performing it; every other session sees who is handling it.
-6. They record it as completed, skipped, refused, or unavailable.
-7. Appwrite commits the occurrence state and audit event together.
-7. Every connected caregiver receives the resulting state.
-8. A later correction adds history instead of rewriting it.
-9. Caregivers can pause alerts while unavailable without losing circle access.
-10. The owner chooses a first contact and an escalation delay; overdue alerts
+2. The owner creates one or more care profiles and assigns each daily action to
+   the correct person and timezone.
+3. The caregiver accepts the emailed link and confirms their identity with OTP.
+4. Both caregivers open the shared Today view.
+5. One selects a due action and reviews its instructions.
+6. One caregiver claims the action before performing it; every other session sees who is handling it.
+7. They record it as completed, skipped, refused, or unavailable.
+8. Appwrite commits the occurrence state and audit event together.
+9. Every connected caregiver receives the resulting state.
+10. A later correction adds history instead of rewriting it.
+11. Caregivers can pause alerts while unavailable without losing circle access.
+12. The owner chooses a first contact and an escalation delay; overdue alerts
     then fan out to all available caregivers.
 
 ## Safety invariants
@@ -49,6 +51,8 @@ The demonstration uses synthetic people and schedules.
 - Unavailable caregivers never receive due or overdue notifications.
 - Notification retries do not create duplicate deliveries.
 - Alert delivery metadata is shown only to the care-circle owner.
+- Every daily action belongs to one active care profile; archiving a profile
+  cannot orphan an active action.
 
 ## Proof scenario
 

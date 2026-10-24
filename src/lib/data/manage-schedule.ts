@@ -10,6 +10,7 @@ import { TABLES, type MemberRow, type OccurrenceRow } from "@/lib/domain/schema"
 import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
 export const scheduleInputSchema = z.object({
+  recipientId: z.string().min(1).max(36).optional(),
   title: z.string().trim().min(2).max(120),
   instruction: z.string().trim().max(500).optional(),
   localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -18,7 +19,7 @@ export const scheduleInputSchema = z.object({
 
 type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 type CircleRow = Models.Row & { teamId: string; timezone: string };
-type RecipientRow = Models.Row & { circleId: string };
+type RecipientRow = Models.Row & { circleId: string; timezone: string | null; archivedAt: string | null };
 type ScheduleRow = Models.Row & {
   circleId: string;
   recipientId: string;
@@ -53,7 +54,12 @@ export async function createSchedule(circleId: string, userId: string, input: Sc
   const recipients = await tables.listRows<RecipientRow>({
     databaseId,
     tableId: TABLES.recipients,
-    queries: [Query.equal("circleId", [circleId]), Query.limit(1)],
+    queries: [
+      Query.equal("circleId", [circleId]),
+      ...(input.recipientId ? [Query.equal("$id", [input.recipientId])] : []),
+      Query.isNull("archivedAt"),
+      Query.limit(1),
+    ],
     total: false,
   });
   const recipient = recipients.rows[0];
@@ -69,7 +75,7 @@ export async function createSchedule(circleId: string, userId: string, input: Sc
       title: input.title,
       instruction: input.instruction || null,
       localTime: input.localTime,
-      timezone: circle.timezone,
+      timezone: recipient.timezone ?? circle.timezone,
       rrule: "FREQ=DAILY",
       active: input.active,
       archivedAt: null,
@@ -95,6 +101,11 @@ export async function updateSchedule(
   });
   if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
   if (schedule.archivedAt) throw new ScheduleNotFoundError();
+  let recipient: RecipientRow | null = null;
+  if (input.recipientId && input.recipientId !== schedule.recipientId) {
+    recipient = await tables.getRow<RecipientRow>({ databaseId, tableId: TABLES.recipients, rowId: input.recipientId });
+    if (recipient.circleId !== circleId || recipient.archivedAt) throw new ScheduleForbiddenError();
+  }
 
   const updated = await tables.updateRow({
     databaseId,
@@ -102,9 +113,11 @@ export async function updateSchedule(
     rowId: scheduleId,
     data: {
       title: input.title,
+      recipientId: recipient?.$id ?? schedule.recipientId,
       instruction: input.instruction || null,
       localTime: input.localTime,
       active: input.active,
+      timezone: recipient ? recipient.timezone ?? circle.timezone : schedule.timezone,
     },
   });
 
@@ -115,18 +128,19 @@ export async function updateSchedule(
       queries: [Query.equal("scheduleId", [scheduleId]), Query.limit(100)],
       total: false,
     });
-    const todayKey = localDateKey(new Date(), circle.timezone);
+    const effectiveTimezone = recipient ? recipient.timezone ?? circle.timezone : schedule.timezone;
+    const todayKey = localDateKey(new Date(), effectiveTimezone);
     const todayDue = occurrences.rows.find(
-      (row) => row.status === "due" && localDateKey(new Date(row.dueAt), circle.timezone) === todayKey,
+      (row) => row.status === "due" && localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey,
     );
     if (todayDue) {
       await tables.updateRow({
         databaseId,
         tableId: TABLES.occurrences,
         rowId: todayDue.$id,
-        data: { dueAt: localTimeTodayAsUtc(input.localTime, circle.timezone) },
+        data: { dueAt: localTimeTodayAsUtc(input.localTime, effectiveTimezone) },
       });
-    } else if (!occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), circle.timezone) === todayKey)) {
+    } else if (!occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey)) {
       await ensureTodayOccurrences(circleId);
     }
   }

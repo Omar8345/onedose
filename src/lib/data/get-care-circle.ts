@@ -17,8 +17,15 @@ import { localDateKey, localDateLabel } from "@/lib/domain/time";
 import type { AlertActivity, CareCircle, Occurrence, TimelineEvent } from "@/lib/types";
 
 type CircleRow = Models.Row & { name: string; timezone: string; teamId: string };
-type RecipientRow = Models.Row & { displayName: string };
+type RecipientRow = Models.Row & {
+  displayName: string;
+  relationship: string | null;
+  careNotes: string | null;
+  timezone: string | null;
+  archivedAt: string | null;
+};
 type ScheduleRow = Models.Row & {
+  recipientId: string;
   title: string;
   instruction: string | null;
   localTime: string;
@@ -68,7 +75,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   ]);
 
   const scheduleById = new Map(schedules.rows.map((schedule) => [schedule.$id, schedule]));
-  const todayKey = localDateKey(new Date(), circle.timezone);
+  const recipientById = new Map(recipients.rows.map((item) => [item.$id, item]));
   const occurrenceById = new Map(occurrences.rows.map((occurrence) => [occurrence.$id, occurrence]));
   const claimByOccurrenceId = new Map(claims.rows.map((claim) => [claim.occurrenceId, claim]));
   const recipient = recipients.rows[0];
@@ -86,7 +93,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const availability = (userId: string) => availabilityByUserId.get(userId) ?? "available";
   const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
-    if (!schedule || schedule.archivedAt || !schedule.active || localDateKey(new Date(row.dueAt), circle.timezone) !== todayKey) return [];
+    const careRecipient = schedule ? recipientById.get(schedule.recipientId) : undefined;
+    if (!schedule || !careRecipient || careRecipient.archivedAt || schedule.archivedAt || !schedule.active || localDateKey(new Date(row.dueAt), schedule.timezone) !== localDateKey(new Date(), schedule.timezone)) return [];
     const recorded = row.status !== "due";
     const claim = claimByOccurrenceId.get(row.$id);
     const claimIsActive = Boolean(
@@ -96,6 +104,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     );
     return [{
       id: row.$id,
+      recipientId: careRecipient.$id,
+      recipientName: careRecipient.displayName,
       time: formatTime(row.dueAt, schedule.timezone),
       title: schedule.title,
       detail: schedule.instruction ?? "Scheduled care action",
@@ -194,6 +204,13 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     id: circle.$id,
     teamId: circle.teamId,
     recipient: circle.name || `${recipient?.displayName ?? "Care"} circle`,
+    recipients: recipients.rows.filter((item) => !item.archivedAt).map((item) => ({
+      id: item.$id,
+      displayName: item.displayName,
+      relationship: item.relationship ?? "",
+      careNotes: item.careNotes ?? "",
+      timezone: item.timezone ?? circle.timezone,
+    })),
     timezone: circle.timezone,
     dateLabel: new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "long", timeZone: circle.timezone }).format(new Date()),
     viewerRole,
@@ -207,6 +224,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     caregivers,
     schedules: schedules.rows.filter((schedule) => !schedule.archivedAt).map((schedule) => ({
       id: schedule.$id,
+      recipientId: schedule.recipientId,
+      recipientName: recipientById.get(schedule.recipientId)?.displayName ?? "Care recipient",
       title: schedule.title,
       instruction: schedule.instruction ?? "",
       localTime: schedule.localTime,

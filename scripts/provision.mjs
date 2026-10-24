@@ -85,7 +85,14 @@ const schema = [
   {
     id: "care_recipients",
     name: "Care recipients",
-    columns: [varchar("circleId", 36), varchar("displayName", 100), datetime("archivedAt", false)],
+    columns: [
+      varchar("circleId", 36),
+      varchar("displayName", 100),
+      varchar("relationship", 80, false),
+      varchar("careNotes", 1000, false),
+      varchar("timezone", 64, false),
+      datetime("archivedAt", false),
+    ],
     indexes: [index("by_circle_archive", "key", ["circleId", "archivedAt"])],
   },
   {

@@ -29,6 +29,7 @@ The current foundation includes:
 - transactional onboarding for a user's first circle and daily action
 - 15-minute handling leases that stop two caregivers from performing the same action
 - owner-managed daily actions with pause, resume, and history-preserving removal
+- multiple care-recipient profiles with per-person time zones, context, and explicit action assignment
 - a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
@@ -118,6 +119,16 @@ The caregiver proof creates temporary Appwrite users and a Team, revokes a real
 Team membership, verifies the persisted member is revoked, and confirms the
 caregiver's next mutation is rejected. It also checks owner protection and the
 pending-invitation cancellation policy, then removes all temporary data.
+
+Verify care-profile ownership, assignment, and archival protections:
+
+```bash
+npm run test:recipients
+```
+
+The recipient proof creates and edits a synthetic profile, rejects a caregiver
+write, assigns a daily action to the profile, prevents archival while that
+action remains active, then confirms history-preserving archival.
 
 The production worker lives in [`functions/reminders`](functions/reminders).
 Deploy that folder as an Appwrite Function with a 60-minute interval, grant

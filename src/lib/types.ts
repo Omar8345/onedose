@@ -3,6 +3,8 @@ export type OccurrenceStatus = "overdue" | "due" | "upcoming" | RecordedOutcome;
 
 export type Occurrence = {
   id: string;
+  recipientId: string;
+  recipientName: string;
   time: string;
   title: string;
   detail: string;
@@ -30,10 +32,20 @@ export type TimelineEvent = {
 
 export type CareSchedule = {
   id: string;
+  recipientId: string;
+  recipientName: string;
   title: string;
   instruction: string;
   localTime: string;
   active: boolean;
+};
+
+export type CareRecipient = {
+  id: string;
+  displayName: string;
+  relationship: string;
+  careNotes: string;
+  timezone: string;
 };
 
 export type Caregiver = {
@@ -60,6 +72,7 @@ export type CareCircle = {
   id: string;
   teamId: string;
   recipient: string;
+  recipients: CareRecipient[];
   timezone: string;
   dateLabel: string;
   viewerRole: "owner" | "caregiver" | "viewer";

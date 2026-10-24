@@ -37,6 +37,9 @@ Indexes: unique composite `circleId,userId`; key `userId,status`.
 | --- | --- | --- |
 | `circleId` | string(36) | Owning circle |
 | `displayName` | string(100) | Synthetic or user-provided display name |
+| `relationship` | string(80), nullable | Family or care relationship label |
+| `careNotes` | string(1000), nullable | Stable coordination context, not treatment guidance |
+| `timezone` | string(64), nullable | IANA timezone; existing rows fall back to the circle timezone |
 | `archivedAt` | datetime, nullable | Soft archive marker |
 
 Index: key `circleId,archivedAt`.
@@ -208,6 +211,8 @@ flow uses four staged writes.
 ## Permissions
 
 - Care-circle rows are readable by the circle's Appwrite Team.
+- Owners create and edit care-recipient profiles. Profiles with active daily
+  actions cannot be archived, and history remains linked after archival.
 - Owners invite caregivers through Appwrite Team memberships; acceptance is
   followed by Email OTP before OneDose activates the matching member row.
 - Browser clients do not receive direct create, update, or delete permission

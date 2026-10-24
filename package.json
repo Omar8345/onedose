@@ -13,6 +13,7 @@
     "test:reminders": "node --conditions=react-server --import tsx scripts/reminder-test.mts",
     "test:safety": "node --conditions=react-server --import tsx scripts/safety-test.mts",
     "test:caregivers": "node --conditions=react-server --import tsx scripts/caregiver-policy-test.mts",
+    "test:recipients": "node --conditions=react-server --import tsx scripts/recipient-test.mts",
     "test:race": "node --conditions=react-server --import tsx scripts/race-test.mts"
   },
   "dependencies": {

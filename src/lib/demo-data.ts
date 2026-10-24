@@ -11,6 +11,9 @@ export const demoCircle: CareCircle = {
     { id: "alert-1", kind: "due", status: "sent", title: "Midday routine", dateLabel: "Today", time: "12:30 PM", recipientCount: 1 },
   ],
   recipient: "Nora’s care",
+  recipients: [
+    { id: "demo_recipient_nora", displayName: "Nora", relationship: "Parent", careNotes: "Keep handoff notes short and factual.", timezone: "Asia/Dubai" },
+  ],
   timezone: "Asia/Dubai · UTC+4",
   dateLabel: "Monday, 19 October",
   members: [
@@ -24,13 +27,15 @@ export const demoCircle: CareCircle = {
     { membershipId: "membership-sam", userId: "demo-sam", name: "Sam", email: "sam@example.com", role: "caregiver", status: "active", availability: "unavailable" },
   ],
   schedules: [
-    { id: "schedule-morning", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", active: true },
-    { id: "schedule-midday", title: "Midday routine", instruction: "One scheduled action", localTime: "12:30", active: true },
-    { id: "schedule-evening", title: "Evening check-in", instruction: "After dinner", localTime: "19:00", active: true },
+    { id: "schedule-morning", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", active: true },
+    { id: "schedule-midday", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Midday routine", instruction: "One scheduled action", localTime: "12:30", active: true },
+    { id: "schedule-evening", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Evening check-in", instruction: "After dinner", localTime: "19:00", active: true },
   ],
   occurrences: [
     {
       id: "occ-morning-checkin",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       time: "8:00 AM",
       title: "Morning check-in",
       detail: "With breakfast",
@@ -41,6 +46,8 @@ export const demoCircle: CareCircle = {
     },
     {
       id: "occ-midday-action",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       time: "12:30 PM",
       title: "Midday routine",
       detail: "One scheduled action",
@@ -54,6 +61,8 @@ export const demoCircle: CareCircle = {
     },
     {
       id: "occ-evening-checkin",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       time: "7:00 PM",
       title: "Evening check-in",
       detail: "After dinner",
