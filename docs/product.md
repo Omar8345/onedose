@@ -23,7 +23,7 @@ The demonstration uses synthetic people and schedules.
 ## Primary flow
 
 1. An owner invites a caregiver through their private Appwrite Team.
-2. The owner creates one or more care profiles and assigns a daily action to
+2. The owner creates one or more care profiles and assigns a daily, weekday, or one-time action to
    one or several people. Multi-person assignment creates an independent action
    and completion record for every selected person.
 3. The caregiver accepts the emailed link and confirms their identity with OTP.
@@ -56,6 +56,8 @@ The demonstration uses synthetic people and schedules.
 - Every daily action belongs to one active care profile; archiving a profile
   cannot orphan an active action.
 - A bulk assignment is a creation shortcut, never a shared completion state.
+- Occurrences are generated only when the action's recurrence rule matches the
+  recipient's local date.
 
 ## Proof scenario
 

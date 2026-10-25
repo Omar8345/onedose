@@ -25,7 +25,17 @@ import { Channel, type RealtimeSubscription } from "appwrite";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createRealtime } from "@/lib/appwrite/client";
+import {
+  buildScheduleRrule,
+  nextScheduleOccurrence,
+  parseScheduleRrule,
+  scheduleRuleLabel,
+  WEEKDAYS,
+  type ScheduleFrequency,
+  type WeekdayCode,
+} from "@/lib/domain/recurrence";
 import { TABLES } from "@/lib/domain/schema";
+import { localDateKey } from "@/lib/domain/time";
 import type {
   CareCircle,
   CareRecipient,
@@ -192,6 +202,16 @@ export function CareDashboard({
     circle.recipients.some((recipient) => recipient.id === recipientFilter)
       ? recipientFilter
       : "all";
+  const selectedRecipient =
+    activeRecipientFilter === "all"
+      ? null
+      : (circle.recipients.find(
+          (recipient) => recipient.id === activeRecipientFilter,
+        ) ?? null);
+  const activeTimezone = selectedRecipient?.timezone ?? circle.timezone;
+  const timezoneLabel = selectedRecipient
+    ? `${selectedRecipient.displayName}'s local time`
+    : "Care circle time";
   const filteredOccurrences =
     activeRecipientFilter === "all"
       ? occurrences
@@ -580,6 +600,8 @@ export function CareDashboard({
             occurrences={filteredOccurrences}
             timeline={filteredTimeline}
             recipientFilter={activeRecipientFilter}
+            timezone={activeTimezone}
+            timezoneLabel={timezoneLabel}
             onRecipientFilterChange={setRecipientFilter}
             onComplete={openCompletion}
             onClaim={(occurrence) => updateClaim(occurrence, "POST")}
@@ -594,6 +616,8 @@ export function CareDashboard({
             occurrences={filteredOccurrences}
             timeline={filteredTimeline}
             recipientFilter={activeRecipientFilter}
+            timezone={activeTimezone}
+            timezoneLabel={timezoneLabel}
             onRecipientFilterChange={setRecipientFilter}
           />
         ) : view === "caregivers" ? (
@@ -1042,7 +1066,9 @@ function AlertActivityPanel({ circle }: { circle: CareCircle }) {
                       {activity.title}
                     </span>
                   </div>
-                  <span className="recipient-label">{activity.recipientName}</span>
+                  <span className="recipient-label">
+                    {activity.recipientName}
+                  </span>
                   <p>
                     {activity.status === "failed"
                       ? "Delivery failed"
@@ -1252,8 +1278,10 @@ function ScheduleView({
       <div className="page-heading schedule-page-heading">
         <div>
           <span className="eyebrow">Care plan</span>
-          <h1>Daily actions</h1>
-          <p>Each active action creates one fresh record every local day.</p>
+          <h1>Care actions</h1>
+          <p>
+            Plan daily, weekly, or one-time actions in each person’s local time.
+          </p>
         </div>
         <div className="page-heading-actions">
           <button
@@ -1312,56 +1340,85 @@ function ScheduleView({
             <div className="schedule-empty">
               <UsersRound size={28} />
               <h2>No care profiles yet</h2>
-              <p>Add a person before creating daily actions.</p>
+              <p>Add a person before creating care actions.</p>
             </div>
           ) : null}
         </div>
       </section>
 
       <div className="schedule-management-list">
-        {circle.schedules.map((schedule) => (
-          <article
-            className={`schedule-management-card ${schedule.active ? "" : "is-paused"}`}
-            key={schedule.id}
-          >
-            <div className="schedule-management-time">
-              {formatLocalTime(schedule.localTime)}
-            </div>
-            <div>
-              <div className="schedule-title-line">
-                <h2>{schedule.title}</h2>
-                <span
-                  className={`status-pill ${schedule.active ? "status-pill--completed" : "status-pill--upcoming"}`}
-                >
-                  {schedule.active ? "Active" : "Paused"}
-                </span>
+        {circle.schedules.map((schedule) => {
+          const nextOccurrence = schedule.active
+            ? nextScheduleOccurrence(
+                schedule.rrule,
+                schedule.localTime,
+                schedule.timezone,
+              )
+            : null;
+          const stateLabel = schedule.active
+            ? nextOccurrence
+              ? "Active"
+              : "Finished"
+            : "Paused";
+          return (
+            <article
+              className={`schedule-management-card ${schedule.active ? "" : "is-paused"}`}
+              key={schedule.id}
+            >
+              <div className="schedule-management-time">
+                {formatLocalTime(schedule.localTime)}
               </div>
-              <span className="recipient-label">{schedule.recipientName}</span>
-              <p>{schedule.instruction || "No additional instructions."}</p>
-            </div>
-            <div className="schedule-management-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => onEdit(schedule)}
-              >
-                <Pencil size={15} /> Edit
-              </button>
-              <button
-                className="secondary-button secondary-button--danger"
-                type="button"
-                onClick={() => onRemove(schedule)}
-              >
-                <Trash2 size={15} /> Remove
-              </button>
-            </div>
-          </article>
-        ))}
+              <div>
+                <div className="schedule-title-line">
+                  <h2>{schedule.title}</h2>
+                  <span
+                    className={`status-pill ${stateLabel === "Active" ? "status-pill--completed" : "status-pill--upcoming"}`}
+                  >
+                    {stateLabel}
+                  </span>
+                </div>
+                <div className="schedule-meta-line">
+                  <span className="recipient-label">
+                    {schedule.recipientName}
+                  </span>
+                  <span className="schedule-recurrence-label">
+                    <CalendarClock size={13} />{" "}
+                    {scheduleRuleLabel(schedule.rrule)}
+                  </span>
+                </div>
+                <p>{schedule.instruction || "No additional instructions."}</p>
+                {schedule.active ? (
+                  <small className="schedule-next-occurrence">
+                    {nextOccurrence
+                      ? `Next ${new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: schedule.timezone }).format(nextOccurrence)}`
+                      : "No future occurrence"}
+                  </small>
+                ) : null}
+              </div>
+              <div className="schedule-management-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => onEdit(schedule)}
+                >
+                  <Pencil size={15} /> Edit
+                </button>
+                <button
+                  className="secondary-button secondary-button--danger"
+                  type="button"
+                  onClick={() => onRemove(schedule)}
+                >
+                  <Trash2 size={15} /> Remove
+                </button>
+              </div>
+            </article>
+          );
+        })}
         {!circle.schedules.length ? (
           <div className="schedule-empty">
             <CalendarClock size={28} />
-            <h2>No daily actions yet</h2>
-            <p>Add the first recurring care action for this circle.</p>
+            <h2>No care actions yet</h2>
+            <p>Add the first scheduled action for this circle.</p>
           </div>
         ) : null}
       </div>
@@ -1388,6 +1445,7 @@ function ScheduleDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const initialRule = parseScheduleRrule(schedule?.rrule ?? "FREQ=DAILY");
   const [title, setTitle] = useState(schedule?.title ?? "");
   const [instruction, setInstruction] = useState(schedule?.instruction ?? "");
   const [localTime, setLocalTime] = useState(schedule?.localTime ?? "09:00");
@@ -1399,9 +1457,39 @@ function ScheduleDialog({
         ? [recipients[0].id]
         : [],
   );
+  const [frequency, setFrequency] = useState<ScheduleFrequency>(
+    initialRule.frequency,
+  );
+  const [weekdays, setWeekdays] = useState<WeekdayCode[]>(
+    initialRule.frequency === "weekly"
+      ? initialRule.weekdays
+      : ["MO", "TU", "WE", "TH", "FR"],
+  );
+  const initialTimezone =
+    schedule?.timezone ?? recipients[0]?.timezone ?? "UTC";
+  const [date, setDate] = useState(
+    initialRule.frequency === "once"
+      ? initialRule.date
+      : localDateKey(new Date(), initialTimezone),
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
+  const rrule = buildScheduleRrule({ frequency, weekdays, date });
+  const previewRecipient = recipients.find(
+    (recipient) => recipient.id === recipientIds[0],
+  );
+  const previewTimezone =
+    schedule?.timezone ?? previewRecipient?.timezone ?? "UTC";
+  const nextOccurrence = nextScheduleOccurrence(
+    rrule,
+    localTime,
+    previewTimezone,
+  );
+  const recurrenceValid =
+    frequency === "daily" ||
+    (frequency === "weekly" && weekdays.length > 0) ||
+    (frequency === "once" && Boolean(date));
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1430,6 +1518,9 @@ function ScheduleDialog({
             title,
             instruction: instruction || undefined,
             localTime,
+            frequency,
+            weekdays: frequency === "weekly" ? weekdays : undefined,
+            date: frequency === "once" ? date : undefined,
             active,
           }),
         },
@@ -1477,9 +1568,9 @@ function ScheduleDialog({
           <X size={19} />
         </button>
         <form onSubmit={save}>
-          <span className="section-kicker">Daily schedule</span>
+          <span className="section-kicker">Care schedule</span>
           <h2 id="schedule-title">
-            {schedule ? "Edit daily action" : "Add a daily action"}
+            {schedule ? "Edit care action" : "Add a care action"}
           </h2>
           {schedule ? (
             <label className="invite-field">
@@ -1568,7 +1659,7 @@ function ScheduleDialog({
             />
           </label>
           <label className="invite-field">
-            <span>Daily time</span>
+            <span>Time</span>
             <input
               type="time"
               value={localTime}
@@ -1576,6 +1667,88 @@ function ScheduleDialog({
               required
             />
           </label>
+          <fieldset className="schedule-frequency-field">
+            <legend>Schedule</legend>
+            <p className="schedule-frequency-help">
+              Choose when this action should appear.
+            </p>
+            <div className="schedule-frequency-options">
+              {(
+                [
+                  ["daily", "Every day"],
+                  ["weekly", "Weekdays"],
+                  ["once", "One time"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  className={frequency === value ? "is-selected" : ""}
+                  type="button"
+                  key={value}
+                  aria-pressed={frequency === value}
+                  onClick={() => setFrequency(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {frequency !== "daily" ? (
+              <div className="schedule-frequency-detail" key={frequency}>
+                {frequency === "weekly" ? (
+                  <div className="weekday-picker" aria-label="Choose weekdays">
+                    {WEEKDAYS.map((day) => {
+                      const selected = weekdays.includes(day.code);
+                      return (
+                        <button
+                          className={selected ? "is-selected" : ""}
+                          type="button"
+                          key={day.code}
+                          aria-pressed={selected}
+                          aria-label={day.label}
+                          onClick={() =>
+                            setWeekdays((current) =>
+                              selected
+                                ? current.filter((code) => code !== day.code)
+                                : [...current, day.code],
+                            )
+                          }
+                        >
+                          {day.short.slice(0, 1)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <label className="invite-field schedule-date-field">
+                    <span>Date</span>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(event) => setDate(event.target.value)}
+                      required
+                    />
+                  </label>
+                )}
+              </div>
+            ) : null}
+            <div
+              className="schedule-preview"
+              key={`${rrule}:${localTime}:${recipientIds.join(",")}`}
+              role="status"
+              aria-live="polite"
+            >
+              <CalendarClock size={18} />
+              <span>
+                <strong>{scheduleRuleLabel(rrule)}</strong>
+                <small>
+                  {recipientIds.length > 1
+                    ? `${formatLocalTime(localTime)} in each person’s timezone.`
+                    : nextOccurrence
+                      ? `Next: ${new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: previewTimezone }).format(nextOccurrence)}`
+                      : "No future occurrence with this schedule."}
+                </small>
+              </span>
+            </div>
+          </fieldset>
           <label className="note-field schedule-note-field">
             <span>
               Instructions <small>optional</small>
@@ -1594,8 +1767,8 @@ function ScheduleDialog({
                 onChange={(event) => setActive(event.target.checked)}
               />
               <span>
-                <strong>Active every day</strong>
-                <small>Pause this to stop creating new daily records.</small>
+                <strong>Schedule active</strong>
+                <small>Pause this to stop creating new records.</small>
               </span>
             </label>
           ) : null}
@@ -1607,7 +1780,10 @@ function ScheduleDialog({
             <button
               className="primary-button"
               disabled={
-                saving || title.trim().length < 2 || !recipientIds.length
+                saving ||
+                title.trim().length < 2 ||
+                !recipientIds.length ||
+                !recurrenceValid
               }
             >
               {saving
@@ -2141,7 +2317,11 @@ function RecipientFilter({
 }) {
   if (recipients.length < 2) return null;
   return (
-    <div className="recipient-filter" role="group" aria-label="Filter by care recipient">
+    <div
+      className="recipient-filter"
+      role="group"
+      aria-label="Filter by care recipient"
+    >
       <button
         className={value === "all" ? "is-active" : ""}
         type="button"
@@ -2171,6 +2351,8 @@ function TodayView({
   occurrences,
   timeline,
   recipientFilter,
+  timezone,
+  timezoneLabel,
   onRecipientFilterChange,
   onComplete,
   onClaim,
@@ -2183,6 +2365,8 @@ function TodayView({
   occurrences: Occurrence[];
   timeline: CareCircle["timeline"];
   recipientFilter: string;
+  timezone: string;
+  timezoneLabel: string;
   onRecipientFilterChange: (recipientId: string) => void;
   onComplete: (occurrence: Occurrence) => void;
   onClaim: (occurrence: Occurrence) => void;
@@ -2211,8 +2395,12 @@ function TodayView({
               : "Everything due so far is recorded."}
           </p>
         </div>
-        <div className="timezone">
-          <Clock3 size={15} /> {circle.timezone}
+        <div className="timezone" title={`${timezoneLabel}: ${timezone}`}>
+          <Clock3 size={15} />
+          <span>
+            <strong>{timezoneLabel}</strong>
+            <small>{timezone}</small>
+          </span>
         </div>
       </div>
 
@@ -2459,12 +2647,16 @@ function HandoffView({
   occurrences,
   timeline,
   recipientFilter,
+  timezone,
+  timezoneLabel,
   onRecipientFilterChange,
 }: {
   circle: CareCircle;
   occurrences: Occurrence[];
   timeline: CareCircle["timeline"];
   recipientFilter: string;
+  timezone: string;
+  timezoneLabel: string;
   onRecipientFilterChange: (recipientId: string) => void;
 }) {
   const dueCount = occurrences.filter(
@@ -2490,6 +2682,13 @@ function HandoffView({
           <span className="eyebrow">Shared context</span>
           <h1>Handoff</h1>
           <p>A readable history for whoever takes over next.</p>
+        </div>
+        <div className="timezone" title={`${timezoneLabel}: ${timezone}`}>
+          <Clock3 size={15} />
+          <span>
+            <strong>{timezoneLabel}</strong>
+            <small>{timezone}</small>
+          </span>
         </div>
       </div>
 
@@ -2519,7 +2718,9 @@ function HandoffView({
                   </span>
                   <div>
                     <span className="timeline-time">{event.time}</span>
-                    <span className="recipient-label">{event.recipientName}</span>
+                    <span className="recipient-label">
+                      {event.recipientName}
+                    </span>
                     <h3>{event.title}</h3>
                     <p>{event.detail}</p>
                   </div>

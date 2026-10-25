@@ -30,6 +30,7 @@ type ScheduleRow = Models.Row & {
   instruction: string | null;
   localTime: string;
   timezone: string;
+  rrule: string;
   active: boolean;
   archivedAt: string | null;
 };
@@ -237,6 +238,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       title: schedule.title,
       instruction: schedule.instruction ?? "",
       localTime: schedule.localTime,
+      timezone: schedule.timezone,
+      rrule: schedule.rrule,
       active: schedule.active,
     })),
     occurrences: occurrenceViews,

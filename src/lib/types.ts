@@ -39,6 +39,8 @@ export type CareSchedule = {
   title: string;
   instruction: string;
   localTime: string;
+  timezone: string;
+  rrule: string;
   active: boolean;
 };
 

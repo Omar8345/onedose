@@ -1,7 +1,8 @@
 # OneDose reminder function
 
-This Appwrite Function runs once per hour. It creates missing daily occurrences,
-sends the due reminder to the first available contact, and escalates to every
+This Appwrite Function runs once per hour. It creates missing occurrences for
+daily, selected-weekday, and one-time schedules, sends the due reminder to the
+first available contact, and escalates to every
 available caregiver after the circle's configured grace period.
 `notification_deliveries` prevents duplicate messages when the function is retried.
 

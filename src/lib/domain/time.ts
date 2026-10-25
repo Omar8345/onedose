@@ -39,10 +39,10 @@ export function localDateLabel(date: Date, timezone: string, now = new Date()) {
   }).format(date);
 }
 
-export function localTimeTodayAsUtc(localTime: string, timezone: string, now = new Date()) {
-  const today = localParts(now, timezone);
+export function localDateTimeAsUtc(dateKey: string, localTime: string, timezone: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
   const [hour, minute] = localTime.split(":").map(Number);
-  const desired = Date.UTC(today.year, today.month - 1, today.day, hour, minute, 0);
+  const desired = Date.UTC(year, month - 1, day, hour, minute, 0);
   let guess = desired;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -59,4 +59,8 @@ export function localTimeTodayAsUtc(localTime: string, timezone: string, now = n
   }
 
   return new Date(guess).toISOString();
+}
+
+export function localTimeTodayAsUtc(localTime: string, timezone: string, now = new Date()) {
+  return localDateTimeAsUtc(localDateKey(now, timezone), localTime, timezone);
 }

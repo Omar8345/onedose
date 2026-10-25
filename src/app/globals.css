@@ -422,6 +422,24 @@ a {
     monospace;
   white-space: nowrap;
 }
+.timezone > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.timezone strong {
+  color: var(--ink);
+  font:
+    650 11px var(--font-sans),
+    sans-serif;
+  letter-spacing: 0;
+}
+.timezone small {
+  color: var(--muted);
+  font:
+    500 10px var(--font-mono),
+    monospace;
+}
 
 .recipient-filter {
   align-items: center;
@@ -1094,6 +1112,36 @@ a {
   color: var(--muted);
   line-height: 1.5;
 }
+.schedule-meta-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  margin-top: 7px;
+}
+.schedule-meta-line .recipient-label {
+  align-items: center;
+  margin-top: 0;
+  min-height: 32px;
+}
+.schedule-recurrence-label {
+  align-items: center;
+  color: var(--sage);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 750;
+  gap: 5px;
+  line-height: 1;
+  margin: 0;
+  min-height: 32px;
+}
+.schedule-next-occurrence {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  margin-top: 8px;
+}
 .schedule-management-actions {
   display: flex;
   align-items: center;
@@ -1299,6 +1347,163 @@ a {
   border-color: var(--sage);
   color: white;
   transform: scale(1.04);
+}
+.schedule-frequency-field {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(245, 246, 239, 0.82));
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  margin: 18px 0 0;
+  padding: 16px;
+}
+.schedule-frequency-field > legend {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  text-transform: uppercase;
+}
+.schedule-frequency-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0 0 11px;
+}
+.schedule-frequency-options {
+  background: rgba(225, 228, 218, 0.72);
+  border: 1px solid rgba(202, 207, 198, 0.65);
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 4px;
+}
+.schedule-frequency-options button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 39px;
+  padding: 0 10px;
+  transition:
+    background-color 170ms ease,
+    border-color 170ms ease,
+    box-shadow 170ms ease,
+    color 170ms ease,
+    transform 170ms ease;
+}
+.schedule-frequency-options button:hover {
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+.schedule-frequency-options button:focus-visible,
+.weekday-picker button:focus-visible {
+  outline: 3px solid rgba(93, 198, 154, 0.38);
+  outline-offset: 2px;
+}
+.schedule-frequency-options button.is-selected {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow:
+    0 1px 2px rgba(31, 48, 42, 0.05),
+    0 5px 14px rgba(31, 48, 42, 0.09);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+.schedule-frequency-detail {
+  animation: schedule-detail-in 190ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.weekday-picker {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(7, 1fr);
+  margin-top: 12px;
+}
+.weekday-picker button {
+  aspect-ratio: 1;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 0;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+.weekday-picker button:hover,
+.weekday-picker button.is-selected {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: white;
+  transform: translateY(-2px);
+}
+.weekday-picker button.is-selected {
+  box-shadow: 0 5px 12px rgba(63, 118, 99, 0.2);
+}
+.schedule-date-field {
+  margin-top: 12px;
+}
+.schedule-preview {
+  align-items: center;
+  animation: schedule-preview-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  background: var(--sage-soft);
+  border: 1px solid rgba(63, 118, 99, 0.12);
+  border-radius: 13px;
+  color: var(--sage);
+  display: flex;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 13px 14px;
+}
+.schedule-preview > svg {
+  flex: 0 0 auto;
+}
+.schedule-preview span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.schedule-preview strong {
+  font-size: 12px;
+}
+.schedule-preview small {
+  color: #607b6e;
+  font-size: 11px;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+@keyframes schedule-detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes schedule-preview-in {
+  from {
+    opacity: 0.45;
+    transform: translateY(4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .recipient-dialog-actions {
   display: grid;

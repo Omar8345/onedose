@@ -27,9 +27,9 @@ export const demoCircle: CareCircle = {
     { membershipId: "membership-sam", userId: "demo-sam", name: "Sam", email: "sam@example.com", role: "caregiver", status: "active", availability: "unavailable" },
   ],
   schedules: [
-    { id: "schedule-morning", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", active: true },
-    { id: "schedule-midday", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Midday routine", instruction: "One scheduled action", localTime: "12:30", active: true },
-    { id: "schedule-evening", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Evening check-in", instruction: "After dinner", localTime: "19:00", active: true },
+    { id: "schedule-morning", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Morning check-in", instruction: "With breakfast", localTime: "08:00", timezone: "Asia/Dubai", rrule: "FREQ=DAILY", active: true },
+    { id: "schedule-midday", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Midday routine", instruction: "One scheduled action", localTime: "12:30", timezone: "Asia/Dubai", rrule: "FREQ=WEEKLY;BYDAY=MO,WE,FR", active: true },
+    { id: "schedule-evening", recipientId: "demo_recipient_nora", recipientName: "Nora", title: "Evening check-in", instruction: "After dinner", localTime: "19:00", timezone: "Asia/Dubai", rrule: "FREQ=DAILY", active: true },
   ],
   occurrences: [
     {

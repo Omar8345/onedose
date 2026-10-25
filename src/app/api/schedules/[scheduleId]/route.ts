@@ -48,7 +48,7 @@ export async function PATCH(
     return Response.json({ ok: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return Response.json({ message: "Check the action name and daily time." }, { status: 400 });
+      return Response.json({ message: "Check the action name, time, and schedule." }, { status: 400 });
     }
     if (error instanceof ScheduleForbiddenError) {
       return Response.json({ message: error.message }, { status: 403 });

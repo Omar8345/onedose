@@ -54,7 +54,7 @@ Index: key `circleId,archivedAt`.
 | `instruction` | string(500), nullable | Coordination instructions only |
 | `localTime` | string(5) | `HH:mm` in the circle timezone |
 | `timezone` | string(64) | IANA timezone captured with schedule |
-| `rrule` | string(500) | Recurrence rule |
+| `rrule` | string(500) | `FREQ=DAILY`, `FREQ=WEEKLY;BYDAY=...`, or `FREQ=ONCE;DATE=YYYY-MM-DD` |
 | `active` | boolean | Whether new occurrences are generated |
 | `archivedAt` | datetime, nullable | Soft archive marker; history remains linked |
 

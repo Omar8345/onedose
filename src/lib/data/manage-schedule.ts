@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { ensureTodayOccurrences } from "@/lib/data/ensure-occurrences";
 import { stableRowId } from "@/lib/domain/ids";
+import { buildScheduleRrule, scheduleOccursToday } from "@/lib/domain/recurrence";
 import { TABLES, type MemberRow, type OccurrenceRow } from "@/lib/domain/schema";
 import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
@@ -15,10 +16,23 @@ export const scheduleInputSchema = z.object({
   title: z.string().trim().min(2).max(120),
   instruction: z.string().trim().max(500).optional(),
   localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  frequency: z.enum(["daily", "weekly", "once"]).default("daily"),
+  weekdays: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])).max(7).optional(),
+  date: z.iso.date().optional(),
   active: z.boolean().default(true),
+}).superRefine((input, context) => {
+  if (input.frequency === "weekly" && !input.weekdays?.length) {
+    context.addIssue({ code: "custom", path: ["weekdays"], message: "Choose at least one weekday." });
+  }
+  if (input.frequency === "once" && !input.date) {
+    context.addIssue({ code: "custom", path: ["date"], message: "Choose the date for this action." });
+  }
 });
 
-type ScheduleInput = z.infer<typeof scheduleInputSchema>;
+type ParsedScheduleInput = z.infer<typeof scheduleInputSchema>;
+type ScheduleInput = Omit<ParsedScheduleInput, "frequency"> & {
+  frequency?: ParsedScheduleInput["frequency"];
+};
 type CircleRow = Models.Row & { teamId: string; timezone: string };
 type RecipientRow = Models.Row & { circleId: string; timezone: string | null; archivedAt: string | null };
 type ScheduleRow = Models.Row & {
@@ -75,6 +89,7 @@ export async function createSchedules(circleId: string, userId: string, input: S
   }
 
   const schedules: ScheduleRow[] = [];
+  const rrule = buildScheduleRrule(input);
   try {
     for (const recipient of selectedRecipients) {
       if (!recipient) continue;
@@ -89,7 +104,7 @@ export async function createSchedules(circleId: string, userId: string, input: S
           instruction: input.instruction || null,
           localTime: input.localTime,
           timezone: recipient.timezone ?? circle.timezone,
-          rrule: "FREQ=DAILY",
+          rrule,
           active: input.active,
           archivedAt: null,
         },
@@ -128,6 +143,7 @@ export async function updateSchedule(
   });
   if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
   if (schedule.archivedAt) throw new ScheduleNotFoundError();
+  const rrule = buildScheduleRrule(input);
   let recipient: RecipientRow | null = null;
   if (input.recipientId && input.recipientId !== schedule.recipientId) {
     recipient = await tables.getRow<RecipientRow>({ databaseId, tableId: TABLES.recipients, rowId: input.recipientId });
@@ -143,6 +159,7 @@ export async function updateSchedule(
       recipientId: recipient?.$id ?? schedule.recipientId,
       instruction: input.instruction || null,
       localTime: input.localTime,
+      rrule,
       active: input.active,
       timezone: recipient ? recipient.timezone ?? circle.timezone : schedule.timezone,
     },
@@ -157,17 +174,20 @@ export async function updateSchedule(
     });
     const effectiveTimezone = recipient ? recipient.timezone ?? circle.timezone : schedule.timezone;
     const todayKey = localDateKey(new Date(), effectiveTimezone);
+    const occursToday = scheduleOccursToday(rrule, effectiveTimezone);
     const todayDue = occurrences.rows.find(
       (row) => row.status === "due" && localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey,
     );
-    if (todayDue) {
+    if (todayDue && occursToday) {
       await tables.updateRow({
         databaseId,
         tableId: TABLES.occurrences,
         rowId: todayDue.$id,
         data: { dueAt: localTimeTodayAsUtc(input.localTime, effectiveTimezone) },
       });
-    } else if (!occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey)) {
+    } else if (todayDue) {
+      await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: todayDue.$id });
+    } else if (occursToday && !occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey)) {
       await ensureTodayOccurrences(circleId);
     }
   }

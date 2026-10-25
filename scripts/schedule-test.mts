@@ -11,11 +11,15 @@ const [
   { ensureTodayOccurrences },
   { getServerAppwrite },
   { TABLES },
+  { WEEKDAYS, weekdayCode },
+  { localDateKey },
 ] = await Promise.all([
   import("../src/lib/data/manage-schedule"),
   import("../src/lib/data/ensure-occurrences"),
   import("../src/lib/appwrite/server"),
   import("../src/lib/domain/schema"),
+  import("../src/lib/domain/recurrence"),
+  import("../src/lib/domain/time"),
 ]);
 
 const CIRCLE_ID = "demo_circle_nora";
@@ -58,13 +62,57 @@ try {
   assert.equal(occurrences.length, 1, "editing must not duplicate today's occurrence");
   assert.notEqual(occurrences[0].dueAt, originalDueAt, "editing the time must move an unrecorded occurrence");
 
+  let stored = await tables.getRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });
+  const todayCode = weekdayCode(new Date(), stored.timezone);
+  const otherDay = WEEKDAYS.find((day) => day.code !== todayCode)?.code ?? "MO";
+  await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
+    title: "Updated schedule test action",
+    instruction: "Synthetic integration test",
+    localTime: "10:45",
+    frequency: "weekly",
+    weekdays: [otherDay],
+    active: true,
+  });
+  assert.equal((await scheduleOccurrences()).length, 0, "a weekday rule must remove an unrecorded occurrence when today is excluded");
+
+  await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
+    title: "Updated schedule test action",
+    instruction: "Synthetic integration test",
+    localTime: "10:45",
+    frequency: "weekly",
+    weekdays: [todayCode],
+    active: true,
+  });
+  assert.equal((await scheduleOccurrences()).length, 1, "a weekday rule must generate today's selected occurrence");
+
+  const tomorrowKey = localDateKey(new Date(Date.now() + 24 * 60 * 60_000), stored.timezone);
+  await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
+    title: "Updated schedule test action",
+    instruction: "Synthetic integration test",
+    localTime: "10:45",
+    frequency: "once",
+    date: tomorrowKey,
+    active: true,
+  });
+  assert.equal((await scheduleOccurrences()).length, 0, "a future one-time action must not generate today");
+
+  await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
+    title: "Updated schedule test action",
+    instruction: "Synthetic integration test",
+    localTime: "10:45",
+    frequency: "once",
+    date: localDateKey(new Date(), stored.timezone),
+    active: true,
+  });
+  assert.equal((await scheduleOccurrences()).length, 1, "a one-time action must generate on its selected local date");
+
   await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
     title: "Updated schedule test action",
     instruction: "Synthetic integration test",
     localTime: "10:45",
     active: false,
   });
-  let stored = await tables.getRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });
+  stored = await tables.getRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });
   assert.equal(stored.active, false, "pause must disable the schedule");
 
   await updateSchedule(CIRCLE_ID, scheduleId, OWNER_ID, {
@@ -96,6 +144,8 @@ try {
     duplicateGenerationPrevented: true,
     editedWithoutDuplicate: true,
     pauseResumeVerified: true,
+    selectedWeekdaysVerified: true,
+    oneTimeDateVerified: true,
     ownerOnlyRemovalVerified: true,
     historyPreservedAfterRemoval: true,
   });

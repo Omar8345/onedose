@@ -5,6 +5,7 @@ import { AppwriteException, Permission, Query, Role, type Models } from "node-ap
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { stableRowId } from "@/lib/domain/ids";
 import { TABLES } from "@/lib/domain/schema";
+import { scheduleOccursToday } from "@/lib/domain/recurrence";
 import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
 type CircleRow = Models.Row & { teamId: string; timezone: string };
@@ -35,7 +36,7 @@ export async function ensureTodayOccurrences(circleId: string, now = new Date())
   ]);
 
   await Promise.all(schedules.rows.map(async (schedule) => {
-    if (schedule.rrule !== "FREQ=DAILY") return;
+    if (!scheduleOccursToday(schedule.rrule, schedule.timezone, now)) return;
     const dueAt = localTimeTodayAsUtc(schedule.localTime, schedule.timezone, now);
     const dateKey = localDateKey(new Date(dueAt), schedule.timezone);
     const rowId = stableRowId("occ", `${schedule.$id}:${dateKey}`);

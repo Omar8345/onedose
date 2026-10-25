@@ -62,6 +62,25 @@ function localTimeTodayAsUtc(localTime, timezone, now) {
   return new Date(guess).toISOString();
 }
 
+function weekdayCode(date, timezone) {
+  const short = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: timezone }).format(date);
+  return { Mon: "MO", Tue: "TU", Wed: "WE", Thu: "TH", Fri: "FR", Sat: "SA", Sun: "SU" }[short];
+}
+
+export function scheduleOccursToday(rrule, timezone, now) {
+  const values = new Map(String(rrule).split(";").map((part) => {
+    const [key, ...rest] = part.split("=");
+    return [key, rest.join("=")];
+  }));
+  if (values.get("FREQ") === "WEEKLY") {
+    return (values.get("BYDAY") || "").split(",").includes(weekdayCode(now, timezone));
+  }
+  if (values.get("FREQ") === "ONCE") {
+    return values.get("DATE") === localDateKey(now, timezone);
+  }
+  return values.get("FREQ") === "DAILY";
+}
+
 async function listAllRows(tables, databaseId, tableId, queries = []) {
   const rows = [];
   let offset = 0;
@@ -106,9 +125,9 @@ async function materializeCircle(tables, databaseId, circle, now) {
   let created = 0;
 
   await Promise.all(schedules.map(async (schedule) => {
-    if (schedule.rrule !== "FREQ=DAILY") return;
+    if (!scheduleOccursToday(schedule.rrule, schedule.timezone, now)) return;
     const dueAt = localTimeTodayAsUtc(schedule.localTime, schedule.timezone, now);
-    const dateKey = localDateKey(new Date(dueAt), circle.timezone);
+    const dateKey = localDateKey(new Date(dueAt), schedule.timezone);
     const rowId = stableId("occ", `${schedule.$id}:${dateKey}`);
 
     try {

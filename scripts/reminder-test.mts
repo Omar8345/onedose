@@ -6,7 +6,7 @@ import { Query } from "node-appwrite";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-const [{ getServerAppwrite }, { runReminderSweep, TABLES }] = await Promise.all([
+const [{ getServerAppwrite }, { runReminderSweep, scheduleOccursToday, TABLES }] = await Promise.all([
   import("../src/lib/appwrite/server"),
   import("../functions/reminders/src/engine.js"),
 ]);
@@ -55,6 +55,13 @@ async function deliveries() {
 }
 
 try {
+  const recurrenceProofDate = new Date("2026-10-21T12:00:00.000Z");
+  assert.equal(scheduleOccursToday("FREQ=DAILY", "UTC", recurrenceProofDate), true);
+  assert.equal(scheduleOccursToday("FREQ=WEEKLY;BYDAY=MO,WE,FR", "UTC", recurrenceProofDate), true);
+  assert.equal(scheduleOccursToday("FREQ=WEEKLY;BYDAY=TU,TH", "UTC", recurrenceProofDate), false);
+  assert.equal(scheduleOccursToday("FREQ=ONCE;DATE=2026-10-21", "UTC", recurrenceProofDate), true);
+  assert.equal(scheduleOccursToday("FREQ=ONCE;DATE=2026-10-22", "UTC", recurrenceProofDate), false);
+
   await tables.createRow({ databaseId, tableId: TABLES.circles, rowId: circleId, data: {
     name: "Reminder proof", teamId, timezone: "UTC", archivedAt: null,
   }, permissions: [] });
@@ -129,6 +136,7 @@ try {
     unavailableCaregiversExcluded: true,
     unavailableContactFallsBackToOne: true,
     escalationStartsAfterFirstReminder: true,
+    flexibleRecurrenceVerified: true,
   });
 } finally {
   for (const row of await deliveries()) {
