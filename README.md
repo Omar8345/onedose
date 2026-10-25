@@ -30,6 +30,7 @@ The current foundation includes:
 - 15-minute handling leases that stop two caregivers from performing the same action
 - owner-managed daily actions with pause, resume, and history-preserving removal
 - multiple care-recipient profiles with per-person time zones, context, and one-person or bulk action assignment
+- a shared recipient filter across Today and Handoff, with recipient-aware history and alert records
 - a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB

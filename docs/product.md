@@ -28,6 +28,7 @@ The demonstration uses synthetic people and schedules.
    and completion record for every selected person.
 3. The caregiver accepts the emailed link and confirms their identity with OTP.
 4. Both caregivers open the shared Today view.
+   They can view everyone together or focus Today and Handoff on one recipient.
 5. One selects a due action and reviews its instructions.
 6. One caregiver claims the action before performing it; every other session sees who is handling it.
 7. They record it as completed, skipped, refused, or unavailable.

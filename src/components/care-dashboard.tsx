@@ -175,6 +175,7 @@ export function CareDashboard({
   const [recipientEditor, setRecipientEditor] = useState<
     CareRecipient | "new" | null
   >(null);
+  const [recipientFilter, setRecipientFilter] = useState("all");
   const [scheduleToRemove, setScheduleToRemove] = useState<CareSchedule | null>(
     null,
   );
@@ -186,6 +187,23 @@ export function CareDashboard({
   const occurrences = circle.occurrences.map(
     (item) => occurrenceOverrides[item.id] ?? item,
   );
+  const activeRecipientFilter =
+    recipientFilter === "all" ||
+    circle.recipients.some((recipient) => recipient.id === recipientFilter)
+      ? recipientFilter
+      : "all";
+  const filteredOccurrences =
+    activeRecipientFilter === "all"
+      ? occurrences
+      : occurrences.filter(
+          (item) => item.recipientId === activeRecipientFilter,
+        );
+  const filteredTimeline =
+    activeRecipientFilter === "all"
+      ? circle.timeline
+      : circle.timeline.filter(
+          (event) => event.recipientId === activeRecipientFilter,
+        );
   const dueCount = occurrences.filter(
     (item) => item.status === "due" || item.status === "overdue",
   ).length;
@@ -559,7 +577,10 @@ export function CareDashboard({
         {view === "today" ? (
           <TodayView
             circle={circle}
-            occurrences={occurrences}
+            occurrences={filteredOccurrences}
+            timeline={filteredTimeline}
+            recipientFilter={activeRecipientFilter}
+            onRecipientFilterChange={setRecipientFilter}
             onComplete={openCompletion}
             onClaim={(occurrence) => updateClaim(occurrence, "POST")}
             onRelease={(occurrence) => updateClaim(occurrence, "DELETE")}
@@ -568,7 +589,13 @@ export function CareDashboard({
             onOpenHandoff={() => setView("handoff")}
           />
         ) : view === "handoff" ? (
-          <HandoffView circle={circle} occurrences={occurrences} />
+          <HandoffView
+            circle={circle}
+            occurrences={filteredOccurrences}
+            timeline={filteredTimeline}
+            recipientFilter={activeRecipientFilter}
+            onRecipientFilterChange={setRecipientFilter}
+          />
         ) : view === "caregivers" ? (
           <CaregiversView circle={circle} viewerId={viewer.id} />
         ) : (
@@ -1015,6 +1042,7 @@ function AlertActivityPanel({ circle }: { circle: CareCircle }) {
                       {activity.title}
                     </span>
                   </div>
+                  <span className="recipient-label">{activity.recipientName}</span>
                   <p>
                     {activity.status === "failed"
                       ? "Delivery failed"
@@ -2102,9 +2130,48 @@ function NavButton({
   );
 }
 
+function RecipientFilter({
+  recipients,
+  value,
+  onChange,
+}: {
+  recipients: CareRecipient[];
+  value: string;
+  onChange: (recipientId: string) => void;
+}) {
+  if (recipients.length < 2) return null;
+  return (
+    <div className="recipient-filter" role="group" aria-label="Filter by care recipient">
+      <button
+        className={value === "all" ? "is-active" : ""}
+        type="button"
+        onClick={() => onChange("all")}
+      >
+        All people
+      </button>
+      {recipients.map((recipient) => (
+        <button
+          className={value === recipient.id ? "is-active" : ""}
+          type="button"
+          key={recipient.id}
+          onClick={() => onChange(recipient.id)}
+        >
+          <span className="recipient-filter-avatar" aria-hidden="true">
+            {initials(recipient.displayName).slice(0, 1)}
+          </span>
+          {recipient.displayName}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TodayView({
   circle,
   occurrences,
+  timeline,
+  recipientFilter,
+  onRecipientFilterChange,
   onComplete,
   onClaim,
   onRelease,
@@ -2114,6 +2181,9 @@ function TodayView({
 }: {
   circle: CareCircle;
   occurrences: Occurrence[];
+  timeline: CareCircle["timeline"];
+  recipientFilter: string;
+  onRecipientFilterChange: (recipientId: string) => void;
   onComplete: (occurrence: Occurrence) => void;
   onClaim: (occurrence: Occurrence) => void;
   onRelease: (occurrence: Occurrence) => void;
@@ -2145,6 +2215,12 @@ function TodayView({
           <Clock3 size={15} /> {circle.timezone}
         </div>
       </div>
+
+      <RecipientFilter
+        recipients={circle.recipients}
+        value={recipientFilter}
+        onChange={onRecipientFilterChange}
+      />
 
       {coordinationError ? (
         <p className="coordination-error" role="alert">
@@ -2239,18 +2315,19 @@ function TodayView({
             <Activity size={18} />
           </div>
           <div className="timeline">
-            {circle.timeline.slice(0, 2).map((event) => (
+            {timeline.slice(0, 2).map((event) => (
               <div
                 className={`timeline-item timeline-item--${event.tone}`}
                 key={event.id}
               >
                 <i />
                 <span className="timeline-time">{event.time}</span>
+                <span className="recipient-label">{event.recipientName}</span>
                 <strong>{event.title}</strong>
                 <p>{event.detail}</p>
               </div>
             ))}
-            {!circle.timeline.length ? (
+            {!timeline.length ? (
               <p className="empty-copy">No outcomes have been recorded yet.</p>
             ) : null}
           </div>
@@ -2380,14 +2457,20 @@ function ScheduleRow({
 function HandoffView({
   circle,
   occurrences,
+  timeline,
+  recipientFilter,
+  onRecipientFilterChange,
 }: {
   circle: CareCircle;
   occurrences: Occurrence[];
+  timeline: CareCircle["timeline"];
+  recipientFilter: string;
+  onRecipientFilterChange: (recipientId: string) => void;
 }) {
   const dueCount = occurrences.filter(
     (item) => item.status === "due" || item.status === "overdue",
   ).length;
-  const eventGroups = circle.timeline.reduce<
+  const eventGroups = timeline.reduce<
     Array<{ key: string; label: string; events: CareCircle["timeline"] }>
   >((groups, event) => {
     const current = groups.at(-1);
@@ -2410,6 +2493,12 @@ function HandoffView({
         </div>
       </div>
 
+      <RecipientFilter
+        recipients={circle.recipients}
+        value={recipientFilter}
+        onChange={onRecipientFilterChange}
+      />
+
       <div className="handoff-layout">
         <section className="handoff-feed">
           {eventGroups.map((group) => (
@@ -2430,6 +2519,7 @@ function HandoffView({
                   </span>
                   <div>
                     <span className="timeline-time">{event.time}</span>
+                    <span className="recipient-label">{event.recipientName}</span>
                     <h3>{event.title}</h3>
                     <p>{event.detail}</p>
                   </div>
@@ -2437,7 +2527,7 @@ function HandoffView({
               ))}
             </div>
           ))}
-          {!circle.timeline.length ? (
+          {!timeline.length ? (
             <p className="empty-copy">
               The handoff will appear here after the first recorded outcome.
             </p>

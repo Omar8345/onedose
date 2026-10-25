@@ -7,8 +7,8 @@ export const demoCircle: CareCircle = {
   viewerAvailability: "available",
   alertSettings: { primaryUserId: "demo-omar", escalationMinutes: 60 },
   alertActivity: [
-    { id: "alert-2", kind: "overdue", status: "sent", title: "Midday routine", dateLabel: "Today", time: "1:30 PM", recipientCount: 2 },
-    { id: "alert-1", kind: "due", status: "sent", title: "Midday routine", dateLabel: "Today", time: "12:30 PM", recipientCount: 1 },
+    { id: "alert-2", recipientId: "demo_recipient_nora", recipientName: "Nora", kind: "overdue", status: "sent", title: "Midday routine", dateLabel: "Today", time: "1:30 PM", recipientCount: 2 },
+    { id: "alert-1", recipientId: "demo_recipient_nora", recipientName: "Nora", kind: "due", status: "sent", title: "Midday routine", dateLabel: "Today", time: "12:30 PM", recipientCount: 1 },
   ],
   recipient: "Nora’s care",
   recipients: [
@@ -73,6 +73,8 @@ export const demoCircle: CareCircle = {
   timeline: [
     {
       id: "evt-1",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       dateKey: "2026-10-19",
       dateLabel: "Today",
       time: "8:04 AM",
@@ -82,6 +84,8 @@ export const demoCircle: CareCircle = {
     },
     {
       id: "evt-2",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       dateKey: "2026-10-18",
       dateLabel: "Yesterday",
       time: "9:18 PM",
@@ -91,6 +95,8 @@ export const demoCircle: CareCircle = {
     },
     {
       id: "evt-3",
+      recipientId: "demo_recipient_nora",
+      recipientName: "Nora",
       dateKey: "2026-10-18",
       dateLabel: "Yesterday",
       time: "7:06 PM",

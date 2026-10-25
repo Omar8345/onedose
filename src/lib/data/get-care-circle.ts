@@ -65,7 +65,7 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     tables.listRows<RecipientRow>({ databaseId, tableId: TABLES.recipients, queries: [Query.equal("circleId", [circleId]), Query.limit(25)], total: false }),
     tables.listRows<ScheduleRow>({ databaseId, tableId: TABLES.schedules, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<MemberRow>({ databaseId, tableId: TABLES.members, queries: [Query.equal("circleId", [circleId]), Query.equal("status", ["active"]), Query.limit(25)], total: false }),
-    tables.listRows<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, queries: [Query.equal("circleId", [circleId]), Query.orderAsc("dueAt"), Query.limit(100)], total: false }),
+    tables.listRows<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("dueAt"), Query.limit(100)], total: false }),
     tables.listRows<OccurrenceClaimRow>({ databaseId, tableId: TABLES.claims, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false }),
     tables.listRows<EventRow>({ databaseId, tableId: TABLES.events, queries: [Query.equal("circleId", [circleId]), Query.orderDesc("recordedAt"), Query.limit(50)], total: false }),
     teams.listMemberships({ teamId: circle.teamId, total: false }),
@@ -91,7 +91,9 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
   const person = (actorId: string) => actorId === viewer.id ? viewer.name : teamMemberNames.get(actorId) || "Caregiver";
   const availabilityByUserId = new Map(preferences.rows.map((preference) => [preference.userId, preference.availability]));
   const availability = (userId: string) => availabilityByUserId.get(userId) ?? "available";
-  const occurrenceViews: Occurrence[] = occurrences.rows.flatMap((row) => {
+  const occurrenceViews: Occurrence[] = [...occurrences.rows]
+    .sort((left, right) => Date.parse(left.dueAt) - Date.parse(right.dueAt))
+    .flatMap((row) => {
     const schedule = scheduleById.get(row.scheduleId);
     const careRecipient = schedule ? recipientById.get(schedule.recipientId) : undefined;
     if (!schedule || !careRecipient || careRecipient.archivedAt || schedule.archivedAt || !schedule.active || localDateKey(new Date(row.dueAt), schedule.timezone) !== localDateKey(new Date(), schedule.timezone)) return [];
@@ -126,12 +128,13 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       claimExpiresAt: claimIsActive ? claim?.expiresAt : undefined,
       claimIsMine: claimIsActive && claim ? claim.actorId === viewer.id : undefined,
     }];
-  });
+    });
 
   const eventById = new Map(events.rows.map((event) => [event.$id, event]));
   const timeline: TimelineEvent[] = events.rows.map((event) => {
     const occurrence = occurrenceById.get(event.occurrenceId);
     const schedule = occurrence ? scheduleById.get(occurrence.scheduleId) : undefined;
+    const careRecipient = schedule ? recipientById.get(schedule.recipientId) : undefined;
     const corrected = event.type === "outcome_corrected";
     const actor = person(event.actorId);
     const previousEvent = event.supersedesEventId ? eventById.get(event.supersedesEventId) : undefined;
@@ -140,6 +143,8 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       : `${actor} corrected the outcome to ${event.outcome}${event.note ? `: ${event.note}` : ""}`;
     return {
       id: event.$id,
+      recipientId: careRecipient?.$id ?? "",
+      recipientName: careRecipient?.displayName ?? "Care recipient",
       dateKey: localDateKey(new Date(event.occurredAt), circle.timezone),
       dateLabel: localDateLabel(new Date(event.occurredAt), circle.timezone),
       time: formatTime(event.occurredAt, circle.timezone),
@@ -187,9 +192,12 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
     ? notifications.rows.map((delivery) => {
       const occurrence = occurrenceById.get(delivery.occurrenceId);
       const schedule = occurrence ? scheduleById.get(occurrence.scheduleId) : undefined;
+      const careRecipient = schedule ? recipientById.get(schedule.recipientId) : undefined;
       const happenedAt = delivery.sentAt ?? delivery.claimedAt;
       return {
         id: delivery.$id,
+        recipientId: careRecipient?.$id ?? "",
+        recipientName: careRecipient?.displayName ?? "Care recipient",
         kind: delivery.kind,
         status: delivery.status,
         title: schedule?.title ?? "Scheduled care action",

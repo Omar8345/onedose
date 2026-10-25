@@ -423,6 +423,85 @@ a {
   white-space: nowrap;
 }
 
+.recipient-filter {
+  align-items: center;
+  background: rgba(255, 253, 248, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  gap: 5px;
+  margin: -5px 0 28px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 5px;
+  scrollbar-width: none;
+  width: fit-content;
+}
+
+.recipient-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.recipient-filter button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 7px;
+  letter-spacing: 0.01em;
+  min-height: 36px;
+  padding: 5px 12px;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.recipient-filter button:hover,
+.recipient-filter button.is-active {
+  background: var(--surface);
+  border-color: var(--sage);
+  color: var(--sage);
+}
+
+.recipient-filter button.is-active {
+  box-shadow: 0 4px 12px rgba(57, 105, 87, 0.1);
+}
+
+.recipient-filter button:hover:not(.is-active) {
+  background: rgba(223, 236, 228, 0.48);
+  transform: translateY(-1px);
+}
+
+.recipient-filter-avatar {
+  align-items: center;
+  background: var(--sage-soft);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+  color: var(--sage);
+  font:
+    700 10px var(--font-mono),
+    monospace;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.recipient-filter button.is-active .recipient-filter-avatar {
+  background: var(--sage);
+  color: white;
+}
+
 .focus-card {
   background: var(--sage);
   color: #f9fbf5;
@@ -922,13 +1001,23 @@ a {
   margin-bottom: 7px;
 }
 .timeline-item strong {
+  display: block;
   font-size: 14px;
+  line-height: 1.3;
+}
+.timeline-item .recipient-label {
+  margin-bottom: 7px;
 }
 .timeline-item p {
   color: var(--muted);
   line-height: 1.5;
   font-size: 13px;
   margin: 6px 0 0;
+}
+.timeline-item .recipient-label,
+.handoff-event .recipient-label {
+  display: flex;
+  margin: 0 0 6px;
 }
 .empty-copy {
   color: var(--muted);
@@ -1709,6 +1798,7 @@ a {
 .handoff-event h3 {
   margin: 0;
   font-size: 17px;
+  line-height: 1.3;
 }
 .handoff-event p {
   margin: 7px 0 0;

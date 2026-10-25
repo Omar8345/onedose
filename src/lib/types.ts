@@ -22,6 +22,8 @@ export type Occurrence = {
 
 export type TimelineEvent = {
   id: string;
+  recipientId: string;
+  recipientName: string;
   dateKey: string;
   dateLabel: string;
   time: string;
@@ -60,6 +62,8 @@ export type Caregiver = {
 
 export type AlertActivity = {
   id: string;
+  recipientId: string;
+  recipientName: string;
   kind: "due" | "overdue";
   status: "claimed" | "sent" | "failed" | "dry_run";
   title: string;
