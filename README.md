@@ -1,5 +1,7 @@
 # OneDose
 
+![OneDose — shared care, one clear record](public/onedose-hero.png)
+
 OneDose is a shared care handoff that prevents two caregivers from recording
 the same scheduled action twice.
 
@@ -9,7 +11,7 @@ attempt remains explainable.
 
 Built for the 2026 Appwrite Databases Hackathon with Appwrite TablesDB.
 
-**Live app:** [onedose.appwrite.network](https://onedose.appwrite.network)
+**[Open the live app](https://onedose.appwrite.network)** · **[View the source](https://github.com/Omar8345/onedose)**
 
 ## Current foundation
 
@@ -26,7 +28,7 @@ The current foundation includes:
 - caregiver availability that suppresses alerts without removing access
 - owner-configured first-contact and overdue escalation rules
 - an owner-only alert activity ledger backed by TablesDB delivery records
-- transactional onboarding for a user's first circle and daily action
+- transactional onboarding for a user's first circle and care action
 - 15-minute handling leases that stop two caregivers from performing the same action
 - owner-managed daily, weekday, and one-time actions with pause, resume, and history-preserving removal
 - multiple care-recipient profiles with per-person time zones, context, and one-person or bulk action assignment
@@ -78,8 +80,8 @@ npm run db:seed
 
 The seed command is also idempotent. It creates Nora's care circle, two demo
 caregivers, a daily midday schedule, and one due occurrence for the current
-Dubai date. The rows use deterministic IDs and remain server-only until the
-Appwrite Auth and Teams onboarding flow is connected.
+Dubai date. The rows use deterministic IDs and remain isolated from
+authenticated care circles; only the verification scripts use them.
 
 Run the live concurrency proof after provisioning and seeding:
 
