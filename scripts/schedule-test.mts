@@ -128,7 +128,7 @@ try {
   await assert.rejects(
     archiveSchedule(CIRCLE_ID, scheduleId, "demo_maya"),
     (error: unknown) => error instanceof Error && error.name === "ScheduleForbiddenError",
-    "a caregiver must not be able to remove a daily action",
+    "a caregiver must not be able to remove a care action",
   );
   await archiveSchedule(CIRCLE_ID, scheduleId, OWNER_ID);
   stored = await tables.getRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });

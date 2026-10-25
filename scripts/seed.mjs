@@ -85,7 +85,21 @@ function assertExpected(tableId, rowId, existing, expected, mutableKeys = []) {
 
 async function ensureRow(tableId, rowId, data, options = {}) {
   try {
-    const existing = await tables.getRow({ databaseId, tableId, rowId });
+    let existing = await tables.getRow({ databaseId, tableId, rowId });
+    const missingDefaults = Object.fromEntries(
+      (options.fillMissingKeys ?? [])
+        .filter((key) => existing[key] == null && data[key] != null)
+        .map((key) => [key, data[key]]),
+    );
+    if (Object.keys(missingDefaults).length) {
+      existing = await tables.updateRow({
+        databaseId,
+        tableId,
+        rowId,
+        data: missingDefaults,
+      });
+      console.log(`~ updated defaults for ${tableId}/${rowId}`);
+    }
     assertExpected(tableId, rowId, existing, data, options.mutableKeys);
     console.log(`✓ ${tableId}/${rowId} already matches`);
     return existing;
@@ -179,7 +193,11 @@ await ensureRow("care_circle_settings", `set_${stableHash(ids.circle).slice(0, 3
 await ensureRow("care_recipients", ids.recipient, {
   circleId: ids.circle,
   displayName: "Nora",
-});
+  relationship: "Family member",
+  careNotes: "Synthetic profile used by the OneDose concurrency demo.",
+  timezone: "Asia/Dubai",
+  archivedAt: null,
+}, { fillMissingKeys: ["relationship", "careNotes", "timezone"] });
 
 await ensureRow("schedules", ids.schedule, {
   circleId: ids.circle,
@@ -203,4 +221,4 @@ const seededOccurrence = await ensureOccurrence(occurrence.id, {
 });
 
 console.log(`OneDose demo data is ready. Due occurrence: ${seededOccurrence.$id}`);
-console.log("These rows are synthetic and server-only until Appwrite Auth and Teams onboarding is connected.");
+console.log("These rows are synthetic, server-only, and isolated from authenticated care circles.");

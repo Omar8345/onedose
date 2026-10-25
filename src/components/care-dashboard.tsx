@@ -11,7 +11,6 @@ import {
   Clock3,
   Home,
   LogOut,
-  Menu,
   MessageSquareText,
   Pencil,
   Plus,
@@ -25,6 +24,7 @@ import { Channel, type RealtimeSubscription } from "appwrite";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createRealtime } from "@/lib/appwrite/client";
+import { OneDoseLogo } from "@/components/onedose-logo";
 import {
   buildScheduleRrule,
   nextScheduleOccurrence,
@@ -110,6 +110,27 @@ function initials(name: string) {
       .map((part) => part[0]?.toUpperCase())
       .join("") || "CG"
   );
+}
+
+function formatScheduleDateTime(value: Date, timezone: string) {
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+  }).format(value);
+}
+
+function useDialogScrollLock() {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 }
 
 function ClaimNote({
@@ -473,10 +494,7 @@ export function CareDashboard({
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand-row">
-          <Logo />
-          <button className="icon-button mobile-only" aria-label="Open menu">
-            <Menu size={19} />
-          </button>
+          <OneDoseLogo />
         </div>
 
         <div className="circle-switcher">
@@ -513,7 +531,7 @@ export function CareDashboard({
               onClick={() => setView("schedules")}
               icon={<CalendarClock size={18} />}
             >
-              Daily actions
+              Care actions
             </NavButton>
           ) : null}
           <NavButton
@@ -551,6 +569,7 @@ export function CareDashboard({
           </span>
           <button
             className="sidebar-signout"
+            type="button"
             onClick={signOut}
             title="Sign out"
             aria-label="Sign out"
@@ -563,7 +582,7 @@ export function CareDashboard({
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-mobile">
-            <Logo />
+            <OneDoseLogo />
           </div>
           <div className="presence">
             <div
@@ -635,6 +654,8 @@ export function CareDashboard({
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <button
           className={view === "today" ? "is-active" : ""}
+          type="button"
+          aria-current={view === "today" ? "page" : undefined}
           onClick={() => setView("today")}
         >
           <Home size={19} />
@@ -642,6 +663,8 @@ export function CareDashboard({
         </button>
         <button
           className={view === "handoff" ? "is-active" : ""}
+          type="button"
+          aria-current={view === "handoff" ? "page" : undefined}
           onClick={() => setView("handoff")}
         >
           <MessageSquareText size={19} />
@@ -650,6 +673,8 @@ export function CareDashboard({
         {circle.viewerRole === "owner" ? (
           <button
             className={view === "schedules" ? "is-active" : ""}
+            type="button"
+            aria-current={view === "schedules" ? "page" : undefined}
             onClick={() => setView("schedules")}
           >
             <CalendarClock size={19} />
@@ -658,13 +683,15 @@ export function CareDashboard({
         ) : null}
         <button
           className={view === "caregivers" ? "is-active" : ""}
+          type="button"
+          aria-current={view === "caregivers" ? "page" : undefined}
           onClick={() => setView("caregivers")}
         >
           <UsersRound size={19} />
           <span>People</span>
         </button>
         {circle.viewerRole === "owner" ? (
-          <button onClick={() => setInviteOpen(true)}>
+          <button type="button" onClick={() => setInviteOpen(true)}>
             <UserPlus size={19} />
             <span>Invite</span>
           </button>
@@ -1113,6 +1140,7 @@ function RevokeCaregiverDialog({
   onConfirm: () => void;
 }) {
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1286,12 +1314,14 @@ function ScheduleView({
         <div className="page-heading-actions">
           <button
             className="secondary-button"
+            type="button"
             onClick={() => onEditRecipient("new")}
           >
             <UserPlus size={17} /> Add person
           </button>
           <button
             className="primary-button"
+            type="button"
             onClick={() => onEdit("new")}
             disabled={!circle.recipients.length}
           >
@@ -1390,7 +1420,7 @@ function ScheduleView({
                 {schedule.active ? (
                   <small className="schedule-next-occurrence">
                     {nextOccurrence
-                      ? `Next ${new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: schedule.timezone }).format(nextOccurrence)}`
+                      ? `Next ${formatScheduleDateTime(nextOccurrence, schedule.timezone)}`
                       : "No future occurrence"}
                   </small>
                 ) : null}
@@ -1475,6 +1505,7 @@ function ScheduleDialog({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
   const rrule = buildScheduleRrule({ frequency, weekdays, date });
   const previewRecipient = recipients.find(
     (recipient) => recipient.id === recipientIds[0],
@@ -1528,7 +1559,7 @@ function ScheduleDialog({
       const payload = await response.json();
       if (!response.ok)
         throw new Error(
-          payload.message ?? "The daily action could not be saved.",
+          payload.message ?? "The care action could not be saved.",
         );
       close();
       router.refresh();
@@ -1536,7 +1567,7 @@ function ScheduleDialog({
       setMessage(
         error instanceof Error
           ? error.message
-          : "The daily action could not be saved.",
+          : "The care action could not be saved.",
       );
       setSaving(false);
     }
@@ -1655,6 +1686,8 @@ function ScheduleDialog({
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Morning routine"
+              maxLength={120}
+              autoFocus
               required
             />
           </label>
@@ -1743,7 +1776,7 @@ function ScheduleDialog({
                   {recipientIds.length > 1
                     ? `${formatLocalTime(localTime)} in each person’s timezone.`
                     : nextOccurrence
-                      ? `Next: ${new Intl.DateTimeFormat("en", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: previewTimezone }).format(nextOccurrence)}`
+                      ? `Next: ${formatScheduleDateTime(nextOccurrence, previewTimezone)}`
                       : "No future occurrence with this schedule."}
                 </small>
               </span>
@@ -1757,6 +1790,7 @@ function ScheduleDialog({
               value={instruction}
               onChange={(event) => setInstruction(event.target.value)}
               placeholder="What should the caregiver know?"
+              maxLength={500}
             />
           </label>
           {schedule ? (
@@ -1772,13 +1806,18 @@ function ScheduleDialog({
               </span>
             </label>
           ) : null}
-          {message ? <p className="form-error">{message}</p> : null}
+          {message ? (
+            <p className="form-error" role="alert">
+              {message}
+            </p>
+          ) : null}
           <div className="dialog-actions">
             <button className="secondary-button" type="button" onClick={close}>
               Cancel
             </button>
             <button
               className="primary-button"
+              type="submit"
               disabled={
                 saving ||
                 title.trim().length < 2 ||
@@ -1842,6 +1881,15 @@ function RecipientDialog({
   const [archiving, setArchiving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !saving && !archiving) setClosing(true);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [archiving, saving]);
 
   function close() {
     if (!saving && !archiving) setClosing(true);
@@ -1944,6 +1992,8 @@ function RecipientDialog({
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 placeholder="Nora"
+                maxLength={100}
+                autoFocus
                 required
               />
             </label>
@@ -1955,6 +2005,7 @@ function RecipientDialog({
                 value={relationship}
                 onChange={(event) => setRelationship(event.target.value)}
                 placeholder="Parent"
+                maxLength={80}
               />
             </label>
           </div>
@@ -1983,7 +2034,11 @@ function RecipientDialog({
               placeholder="Stable context caregivers should know. Do not include dosing decisions."
             />
           </label>
-          {message ? <p className="form-error">{message}</p> : null}
+          {message ? (
+            <p className="form-error" role="alert">
+              {message}
+            </p>
+          ) : null}
           <div className="dialog-actions recipient-dialog-actions">
             {recipient ? (
               <button
@@ -2001,6 +2056,7 @@ function RecipientDialog({
             </button>
             <button
               className="primary-button"
+              type="submit"
               disabled={saving || archiving || displayName.trim().length < 2}
             >
               {saving ? "Saving…" : "Save profile"}
@@ -2023,6 +2079,7 @@ function RemoveScheduleDialog({
   const [removing, setRemoving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -2046,7 +2103,7 @@ function RemoveScheduleDialog({
       const payload = await response.json();
       if (!response.ok)
         throw new Error(
-          payload.message ?? "The daily action could not be removed.",
+          payload.message ?? "The care action could not be removed.",
         );
       setClosing(true);
       router.refresh();
@@ -2054,7 +2111,7 @@ function RemoveScheduleDialog({
       setMessage(
         error instanceof Error
           ? error.message
-          : "The daily action could not be removed.",
+          : "The care action could not be removed.",
       );
       setRemoving(false);
     }
@@ -2092,7 +2149,7 @@ function RemoveScheduleDialog({
           </span>
           <div>
             <span className="section-kicker section-kicker--coral">
-              Remove daily action
+              Remove care action
             </span>
             <h2 id="remove-schedule-title">Remove {schedule.title}?</h2>
           </div>
@@ -2105,7 +2162,11 @@ function RemoveScheduleDialog({
           <CircleAlert size={17} />
           <span>Future occurrences will no longer be created.</span>
         </div>
-        {message ? <p className="form-error">{message}</p> : null}
+        {message ? (
+          <p className="form-error" role="alert">
+            {message}
+          </p>
+        ) : null}
         <div className="dialog-actions">
           <button
             className="secondary-button"
@@ -2143,6 +2204,7 @@ function InviteDialog({
   );
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -2223,7 +2285,11 @@ function InviteDialog({
               We sent an invitation link to their email. Once they accept it and
               sign in, they’ll have access to this shared care circle.
             </p>
-            <button className="primary-button full-button" onClick={close}>
+            <button
+              className="primary-button full-button"
+              type="button"
+              onClick={close}
+            >
               Done
             </button>
           </div>
@@ -2243,11 +2309,14 @@ function InviteDialog({
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="caregiver@example.com"
                 autoComplete="email"
+                autoFocus
                 required
               />
             </label>
             {status === "error" ? (
-              <p className="form-error">{message}</p>
+              <p className="form-error" role="alert">
+                {message}
+              </p>
             ) : null}
             <div className="dialog-actions">
               <button
@@ -2259,6 +2328,7 @@ function InviteDialog({
               </button>
               <button
                 className="primary-button"
+                type="submit"
                 disabled={status === "sending" || !email.trim()}
               >
                 <UserPlus size={18} />{" "}
@@ -2268,18 +2338,6 @@ function InviteDialog({
           </form>
         )}
       </section>
-    </div>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="logo" aria-label="OneDose">
-      <span className="logo-mark">
-        <i />
-        <i />
-      </span>
-      <span>OneDose</span>
     </div>
   );
 }
@@ -2298,6 +2356,8 @@ function NavButton({
   return (
     <button
       className={active ? "nav-button is-active" : "nav-button"}
+      type="button"
+      aria-current={active ? "page" : undefined}
       onClick={onClick}
     >
       {icon}
@@ -2325,6 +2385,7 @@ function RecipientFilter({
       <button
         className={value === "all" ? "is-active" : ""}
         type="button"
+        aria-pressed={value === "all"}
         onClick={() => onChange("all")}
       >
         All people
@@ -2333,6 +2394,7 @@ function RecipientFilter({
         <button
           className={value === recipient.id ? "is-active" : ""}
           type="button"
+          aria-pressed={value === recipient.id}
           key={recipient.id}
           onClick={() => onChange(recipient.id)}
         >
@@ -2519,7 +2581,7 @@ function TodayView({
               <p className="empty-copy">No outcomes have been recorded yet.</p>
             ) : null}
           </div>
-          <button className="wide-link" onClick={onOpenHandoff}>
+          <button className="wide-link" type="button" onClick={onOpenHandoff}>
             Open full handoff <ArrowRight size={16} />
           </button>
         </aside>
@@ -2547,6 +2609,7 @@ function ClaimAction({
     return (
       <button
         className={featured ? "primary-button" : "row-action"}
+        type="button"
         onClick={() => onComplete(occurrence)}
       >
         Correct <ArrowRight size={15} />
@@ -2563,12 +2626,14 @@ function ClaimAction({
       >
         <button
           className={featured ? "primary-button" : "row-action"}
+          type="button"
           onClick={() => onComplete(occurrence)}
         >
           Record outcome <ArrowRight size={15} />
         </button>
         <button
           className="claim-release"
+          type="button"
           disabled={busy}
           onClick={() => onRelease(occurrence)}
         >
@@ -2579,7 +2644,11 @@ function ClaimAction({
   }
   if (occurrence.claimedBy) {
     return (
-      <button className={featured ? "primary-button" : "row-action"} disabled>
+      <button
+        className={featured ? "primary-button" : "row-action"}
+        type="button"
+        disabled
+      >
         {occurrence.claimedByName ?? "Another caregiver"} is handling
       </button>
     );
@@ -2587,6 +2656,7 @@ function ClaimAction({
   return (
     <button
       className={featured ? "primary-button" : "row-action"}
+      type="button"
       disabled={busy}
       onClick={() => onClaim(occurrence)}
     >
@@ -2736,7 +2806,11 @@ function HandoffView({
         </section>
         <aside className="handoff-summary">
           <span className="section-kicker">Shift summary</span>
-          <h2>Nothing urgent to carry forward.</h2>
+          <h2>
+            {dueCount
+              ? `${dueCount} ${dueCount === 1 ? "action needs" : "actions need"} attention.`
+              : "Nothing urgent to carry forward."}
+          </h2>
           <p>
             {dueCount
               ? `${dueCount} ${dueCount === 1 ? "action still needs" : "actions still need"} an outcome.`
@@ -2783,6 +2857,7 @@ function CompletionDialog({
 }) {
   const isResult = state === "saved" || state === "race" || state === "error";
   const [closing, setClosing] = useState(false);
+  useDialogScrollLock();
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {

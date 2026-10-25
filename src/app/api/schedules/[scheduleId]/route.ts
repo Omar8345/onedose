@@ -28,7 +28,7 @@ export async function DELETE(
       return Response.json({ message: "Sign in again to manage schedules." }, { status: 401 });
     }
     console.error("Unable to remove OneDose schedule", error);
-    return Response.json({ message: "The daily action could not be removed." }, { status: scheduleErrorStatus(error) });
+    return Response.json({ message: "The care action could not be removed." }, { status: scheduleErrorStatus(error) });
   }
 }
 
@@ -57,6 +57,6 @@ export async function PATCH(
       return Response.json({ message: "Sign in again to manage schedules." }, { status: 401 });
     }
     console.error("Unable to update OneDose schedule", error);
-    return Response.json({ message: "The daily action could not be updated." }, { status: scheduleErrorStatus(error) });
+    return Response.json({ message: "The care action could not be updated." }, { status: scheduleErrorStatus(error) });
   }
 }

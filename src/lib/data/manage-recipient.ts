@@ -27,7 +27,7 @@ export class RecipientForbiddenError extends Error {
 
 export class RecipientInUseError extends Error {
   constructor() {
-    super("Move or remove this person’s daily actions before archiving their profile.");
+    super("Move or remove this person’s care actions before archiving their profile.");
     this.name = "RecipientInUseError";
   }
 }

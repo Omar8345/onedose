@@ -22,25 +22,24 @@
 }
 
 html {
+  color-scheme: light;
   min-height: 100%;
   scroll-behavior: smooth;
 }
 body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 15px;
   margin: 0;
   min-height: 100%;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 ::selection {
   background: var(--sage-soft);
   color: var(--ink);
-}
-
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans), sans-serif;
-  font-size: 15px;
 }
 
 button,
@@ -51,6 +50,12 @@ select {
 }
 button {
   color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button svg,
+a svg {
+  flex: 0 0 auto;
 }
 button:focus-visible,
 textarea:focus-visible,
@@ -239,15 +244,20 @@ a {
   cursor: pointer;
   font-weight: 600;
   text-align: left;
-  transition: 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 .nav-button:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  transform: translateX(2px);
 }
 .nav-button.is-active {
   background: #f8f4ea;
   color: var(--navy);
+  transform: none;
 }
 
 .sidebar-proof {
@@ -620,14 +630,17 @@ a {
   z-index: 1;
   transition:
     background-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 .primary-button:hover {
   background: #d95d49;
   box-shadow: 0 12px 26px rgba(119, 50, 37, 0.22);
+  transform: translateY(-1px);
 }
 .primary-button:active {
   box-shadow: 0 5px 13px rgba(119, 50, 37, 0.16);
+  transform: translateY(0);
 }
 .primary-button:disabled {
   background: #d8ded9;
@@ -639,11 +652,10 @@ a {
 .focus-card .primary-button {
   background: #fff8ef;
   color: var(--navy);
-}
-.focus-card .primary-button {
   transition:
     background-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 .focus-card .primary-button:hover {
   background: white;
@@ -687,12 +699,19 @@ a {
     background-color 0.18s ease,
     border-color 0.18s ease,
     color 0.18s ease,
-    box-shadow 0.18s ease;
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 .secondary-button:hover {
   border-color: var(--sage);
   background: var(--sage-soft);
   color: var(--sage);
+  box-shadow: 0 6px 16px rgba(57, 105, 87, 0.08);
+  transform: translateY(-1px);
+}
+.secondary-button:active {
+  box-shadow: none;
+  transform: translateY(0);
 }
 .secondary-button:disabled {
   opacity: 0.58;
@@ -702,11 +721,24 @@ a {
   background: transparent;
   color: var(--sage);
   padding: 8px;
+  transition:
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+.text-button:hover {
+  color: var(--ink);
 }
 .row-action {
   background: transparent;
   color: var(--coral);
   padding: 8px 0;
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+.row-action:hover:not(:disabled) {
+  color: #b84b39;
+  transform: translateX(2px);
 }
 .row-action:disabled {
   color: var(--muted);
@@ -927,11 +959,9 @@ a {
 }
 .schedule-row--overdue .schedule-marker {
   border-color: var(--coral);
-}
-.schedule-row--overdue {
   box-shadow: none;
 }
-.schedule-row--overdue .schedule-marker {
+.schedule-row--overdue {
   box-shadow: none;
 }
 .schedule-row--overdue .schedule-time,
@@ -1088,6 +1118,15 @@ a {
   border-radius: 17px;
   background: var(--surface);
   box-shadow: 0 8px 30px rgba(31, 48, 42, 0.05);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.schedule-management-card:hover {
+  border-color: #c9cec6;
+  box-shadow: 0 12px 34px rgba(31, 48, 42, 0.075);
+  transform: translateY(-1px);
 }
 .schedule-management-card.is-paused {
   background: #f2f1eb;
@@ -1170,6 +1209,15 @@ a {
   border-radius: 17px;
   background: var(--surface);
   box-shadow: 0 8px 30px rgba(31, 48, 42, 0.05);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.recipient-profile-card:hover {
+  border-color: #c9cec6;
+  box-shadow: 0 12px 34px rgba(31, 48, 42, 0.075);
+  transform: translateY(-1px);
 }
 .recipient-avatar {
   border-color: var(--line);
@@ -2074,6 +2122,9 @@ a {
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.3);
   position: relative;
   animation: rise-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  overscroll-behavior: contain;
+  scrollbar-color: #c4cbc5 transparent;
+  scrollbar-width: thin;
 }
 .dialog--closing {
   animation: fall-out 0.2s ease both;
@@ -2095,11 +2146,13 @@ a {
   cursor: pointer;
   transition:
     background-color 0.18s ease,
-    border-color 0.18s ease;
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 .dialog-close:hover {
   background: var(--sage-soft);
   border-color: var(--sage);
+  transform: rotate(4deg);
 }
 .dialog h2 {
   font-size: 30px;
@@ -2185,10 +2238,14 @@ a {
   transition:
     border-color 0.18s ease,
     background-color 0.18s ease,
-    color 0.18s ease;
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 .outcome-choice:hover {
   border-color: #a9b9b0;
+  box-shadow: 0 5px 14px rgba(31, 48, 42, 0.06);
+  transform: translateY(-1px);
 }
 .outcome-choice input {
   position: absolute;
@@ -2254,6 +2311,10 @@ a {
   background: var(--amber);
   color: white;
 }
+.outcome-choice:has(input:focus-visible) {
+  outline: 3px solid rgba(93, 198, 154, 0.45);
+  outline-offset: 2px;
+}
 .note-field span {
   display: block;
   font-weight: 600;
@@ -2310,6 +2371,14 @@ a {
     box-shadow 0.24s ease,
     background-color 0.24s ease,
     transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.invite-field input::placeholder,
+.note-field textarea::placeholder,
+.auth-card input::placeholder,
+.onboarding-form input::placeholder,
+.onboarding-form textarea::placeholder {
+  color: #8d958f;
+  opacity: 1;
 }
 .invite-field input:focus {
   outline: 0;
@@ -2534,9 +2603,6 @@ a {
   margin-top: 18px;
 }
 
-.mobile-only {
-  display: none;
-}
 .mobile-nav {
   display: none;
 }
@@ -3121,16 +3187,6 @@ a {
     transform: translateY(10px) scale(0.98);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .presence > span i::after,
-  .schedule-row--due .schedule-marker::after,
-  .schedule-row--overdue .schedule-marker::after,
-  .race-dot--won::after,
-  .race-dot--stopped::after {
-    animation: none;
-  }
-}
-
 @media (max-width: 980px) {
   .onboarding-shell {
     grid-template-columns: 1fr;
@@ -3311,7 +3367,7 @@ a {
     margin-left: auto;
   }
   .page-content {
-    padding: 38px 19px 60px;
+    padding: 34px 18px 60px;
   }
   .page-heading {
     align-items: flex-start;
@@ -3319,7 +3375,7 @@ a {
     margin-bottom: 25px;
   }
   .page-heading h1 {
-    font-size: 48px;
+    font-size: clamp(40px, 13vw, 48px);
   }
   .focus-card {
     grid-template-columns: 1fr;
@@ -3379,8 +3435,13 @@ a {
     font-size: 12px;
   }
   .dialog {
-    padding: 28px 22px 22px;
-    border-radius: 20px;
+    max-height: calc(100dvh - 24px);
+    padding: 28px 20px max(22px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 16px 16px;
+  }
+  .dialog-backdrop {
+    align-items: end;
+    padding: 12px;
   }
   .dialog h2 {
     font-size: 26px;
@@ -3416,8 +3477,8 @@ a {
     z-index: 40;
     left: 12px;
     right: 12px;
-    bottom: 12px;
-    height: 66px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 66px;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     background: rgba(28, 45, 55, 0.96);
@@ -3468,16 +3529,10 @@ a {
     justify-content: flex-start;
     flex-wrap: wrap;
     padding-top: 2px;
-  }
-  .schedule-management-actions button {
-    flex: 1 1 140px;
-  }
-  .schedule-management-actions {
-    grid-column: 1 / -1;
     width: 100%;
   }
   .schedule-management-actions button {
-    flex: 1;
+    flex: 1 1 140px;
   }
   .caregivers-view .page-heading {
     align-items: flex-start;
@@ -3561,7 +3616,47 @@ a {
     color: var(--navy);
   }
   .page-content {
-    padding-bottom: 105px;
+    padding-bottom: calc(105px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 460px) {
+  .auth-story h1,
+  .onboarding-intro h1 {
+    font-size: 40px;
+  }
+  .auth-panel,
+  .onboarding-panel {
+    padding-inline: 18px;
+  }
+  .setup-card {
+    padding: 32px 22px;
+  }
+  .setup-card h1 {
+    font-size: 34px;
+  }
+  .outcome-picker > div {
+    grid-template-columns: 1fr;
+  }
+  .outcome-choice {
+    min-height: 64px;
+  }
+  .schedule-frequency-options button {
+    font-size: 11px;
+    padding-inline: 6px;
+  }
+  .weekday-picker {
+    gap: 5px;
+  }
+  .schedule-frequency-field {
+    padding: 14px;
+  }
+  .mobile-nav {
+    left: 8px;
+    right: 8px;
+  }
+  .mobile-nav button {
+    font-size: 9px;
   }
 }
 

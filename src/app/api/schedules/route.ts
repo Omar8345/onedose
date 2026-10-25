@@ -34,6 +34,6 @@ export async function POST(request: Request) {
       return Response.json({ message: "Sign in again to manage schedules." }, { status: 401 });
     }
     console.error("Unable to create OneDose schedule", error);
-    return Response.json({ message: "The daily action could not be created." }, { status: scheduleErrorStatus(error) });
+    return Response.json({ message: "The care action could not be created." }, { status: scheduleErrorStatus(error) });
   }
 }

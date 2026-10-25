@@ -4,6 +4,8 @@ import { CheckCircle2, CircleAlert, Mail, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { OneDoseLogo } from "@/components/onedose-logo";
+
 type InviteDetails = {
   teamId: string;
   membershipId: string;
@@ -51,14 +53,11 @@ export function InviteScreen({ details }: { details: InviteDetails | null }) {
   return (
     <main className="invite-shell">
       <section className="invite-card" aria-live="polite">
-        <div className="logo logo--invite" aria-label="OneDose">
-          <span className="logo-mark"><i /><i /></span>
-          <span>OneDose</span>
-        </div>
+        <OneDoseLogo className="logo--invite" />
 
         {state.kind === "loading" ? (
           <>
-            <span className="spinner" />
+            <span className="spinner" aria-hidden="true" />
             <span className="section-kicker">Checking invitation</span>
             <h1>Joining your care circle…</h1>
             <p>OneDose is confirming your secure invitation.</p>

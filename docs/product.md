@@ -53,7 +53,7 @@ The demonstration uses synthetic people and schedules.
 - Unavailable caregivers never receive due or overdue notifications.
 - Notification retries do not create duplicate deliveries.
 - Alert delivery metadata is shown only to the care-circle owner.
-- Every daily action belongs to one active care profile; archiving a profile
+- Every care action belongs to one active care profile; archiving a profile
   cannot orphan an active action.
 - A bulk assignment is a creation shortcut, never a shared completion state.
 - Occurrences are generated only when the action's recurrence rule matches the

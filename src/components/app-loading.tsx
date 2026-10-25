@@ -1,8 +1,10 @@
+import { OneDoseLogo } from "@/components/onedose-logo";
+
 export function AppLoading() {
   return (
     <main className="loading-shell" aria-busy="true" aria-label="Loading OneDose">
-      <div className="logo"><span className="logo-mark"><i /><i /></span><span>OneDose</span></div>
-      <span className="spinner" />
+      <OneDoseLogo />
+      <span className="spinner" aria-hidden="true" />
       <p>Preparing your care circle…</p>
     </main>
   );

@@ -49,7 +49,7 @@ type ScheduleRow = Models.Row & {
 
 export class ScheduleForbiddenError extends Error {
   constructor() {
-    super("Only the circle owner can manage daily actions.");
+    super("Only the circle owner can manage care actions.");
     this.name = "ScheduleForbiddenError";
   }
 }
@@ -197,7 +197,7 @@ export async function updateSchedule(
 
 export class ScheduleNotFoundError extends Error {
   constructor() {
-    super("This daily action no longer exists.");
+    super("This care action no longer exists.");
     this.name = "ScheduleNotFoundError";
   }
 }

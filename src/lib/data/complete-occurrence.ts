@@ -242,7 +242,10 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
     // A concurrent winner can remove the claim before another staged delete.
     // Treat that missing-row race the same as a transaction conflict and read
     // the committed outcome below.
-    if (!isConflict(error) && !isMissing(error)) throw error;
+    const mayHaveConcurrentWinner = isConflict(error)
+      || isMissing(error)
+      || error instanceof CompletionClaimRequiredError;
+    if (!mayHaveConcurrentWinner) throw error;
 
     const winner = await tables.getRow<OccurrenceRow>({
       databaseId,
@@ -250,7 +253,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       rowId: input.occurrenceId,
     });
 
-    if (winner.status === "due") throw new CompletionClaimRequiredError();
+    if (winner.status === "due") throw error;
 
     return { kind: "already_recorded", occurrence: winner };
   }
