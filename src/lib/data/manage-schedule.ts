@@ -11,6 +11,7 @@ import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
 export const scheduleInputSchema = z.object({
   recipientId: z.string().min(1).max(36).optional(),
+  recipientIds: z.array(z.string().min(1).max(36)).min(1).max(25).optional(),
   title: z.string().trim().min(2).max(120),
   instruction: z.string().trim().max(500).optional(),
   localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -23,7 +24,11 @@ type RecipientRow = Models.Row & { circleId: string; timezone: string | null; ar
 type ScheduleRow = Models.Row & {
   circleId: string;
   recipientId: string;
+  title: string;
+  instruction: string | null;
+  localTime: string;
   timezone: string;
+  rrule: string;
   active: boolean;
   archivedAt: string | null;
 };
@@ -49,42 +54,64 @@ async function ownerContext(circleId: string, userId: string) {
   return { databaseId, tables, circle };
 }
 
-export async function createSchedule(circleId: string, userId: string, input: ScheduleInput) {
+export async function createSchedules(circleId: string, userId: string, input: ScheduleInput) {
   const { databaseId, tables, circle } = await ownerContext(circleId, userId);
   const recipients = await tables.listRows<RecipientRow>({
     databaseId,
     tableId: TABLES.recipients,
     queries: [
       Query.equal("circleId", [circleId]),
-      ...(input.recipientId ? [Query.equal("$id", [input.recipientId])] : []),
       Query.isNull("archivedAt"),
-      Query.limit(1),
+      Query.limit(25),
     ],
     total: false,
   });
-  const recipient = recipients.rows[0];
-  if (!recipient) throw new Error("The care recipient no longer exists.");
+  const requestedIds = [...new Set(input.recipientIds?.length ? input.recipientIds : input.recipientId ? [input.recipientId] : [recipients.rows[0]?.$id])]
+    .filter((value): value is string => Boolean(value));
+  const recipientById = new Map(recipients.rows.map((recipient) => [recipient.$id, recipient]));
+  const selectedRecipients = requestedIds.map((id) => recipientById.get(id));
+  if (!selectedRecipients.length || selectedRecipients.some((recipient) => !recipient)) {
+    throw new Error("One or more care recipients no longer exist.");
+  }
 
-  const schedule = await tables.createRow({
-    databaseId,
-    tableId: TABLES.schedules,
-    rowId: ID.unique(),
-    data: {
-      circleId,
-      recipientId: recipient.$id,
-      title: input.title,
-      instruction: input.instruction || null,
-      localTime: input.localTime,
-      timezone: recipient.timezone ?? circle.timezone,
-      rrule: "FREQ=DAILY",
-      active: input.active,
-      archivedAt: null,
-    },
-    permissions: [Permission.read(Role.team(circle.teamId))],
-  });
+  const schedules: ScheduleRow[] = [];
+  try {
+    for (const recipient of selectedRecipients) {
+      if (!recipient) continue;
+      schedules.push(await tables.createRow<ScheduleRow>({
+        databaseId,
+        tableId: TABLES.schedules,
+        rowId: ID.unique(),
+        data: {
+          circleId,
+          recipientId: recipient.$id,
+          title: input.title,
+          instruction: input.instruction || null,
+          localTime: input.localTime,
+          timezone: recipient.timezone ?? circle.timezone,
+          rrule: "FREQ=DAILY",
+          active: input.active,
+          archivedAt: null,
+        },
+        permissions: [Permission.read(Role.team(circle.teamId))],
+      }));
+    }
+  } catch (error) {
+    await Promise.allSettled(schedules.map((schedule) => tables.deleteRow({
+      databaseId,
+      tableId: TABLES.schedules,
+      rowId: schedule.$id,
+    })));
+    throw error;
+  }
 
   if (input.active) await ensureTodayOccurrences(circleId);
-  return schedule;
+  return schedules;
+}
+
+export async function createSchedule(circleId: string, userId: string, input: ScheduleInput) {
+  const schedules = await createSchedules(circleId, userId, input);
+  return schedules[0];
 }
 
 export async function updateSchedule(

@@ -60,6 +60,9 @@ Index: key `circleId,archivedAt`.
 
 Indexes: key `circleId,active`; key `recipientId,active`; key `circleId,archivedAt`.
 
+Selecting several recipients creates one schedule row per recipient. Those rows
+can be edited, paused, completed, and archived independently.
+
 ### `occurrences`
 
 This is the contested row. Every completion transaction updates the same

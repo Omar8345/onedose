@@ -29,7 +29,7 @@ The current foundation includes:
 - transactional onboarding for a user's first circle and daily action
 - 15-minute handling leases that stop two caregivers from performing the same action
 - owner-managed daily actions with pause, resume, and history-preserving removal
-- multiple care-recipient profiles with per-person time zones, context, and explicit action assignment
+- multiple care-recipient profiles with per-person time zones, context, and one-person or bulk action assignment
 - a scheduled Appwrite Function for daily generation, first-contact reminders, and overdue escalation
 - a provisioned TablesDB schema and atomic completion service
 - a live seeded dashboard and completion flow backed by TablesDB
@@ -126,9 +126,10 @@ Verify care-profile ownership, assignment, and archival protections:
 npm run test:recipients
 ```
 
-The recipient proof creates and edits a synthetic profile, rejects a caregiver
-write, assigns a daily action to the profile, prevents archival while that
-action remains active, then confirms history-preserving archival.
+The recipient proof creates and edits synthetic profiles, rejects a caregiver
+write, assigns one action to multiple profiles as independent schedules,
+prevents archival while those actions remain active, then confirms
+history-preserving archival.
 
 The production worker lives in [`functions/reminders`](functions/reminders).
 Deploy that folder as an Appwrite Function with a 60-minute interval, grant

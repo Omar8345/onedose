@@ -7,7 +7,7 @@ loadEnvConfig(process.cwd());
 
 const [
   { archiveRecipient, createRecipient, updateRecipient },
-  { archiveSchedule, createSchedule },
+  { archiveSchedule, createSchedules },
   { getServerAppwrite },
   { TABLES },
 ] = await Promise.all([
@@ -20,8 +20,8 @@ const [
 const CIRCLE_ID = "demo_circle_nora";
 const OWNER_ID = "demo_omar";
 const { databaseId, tables } = getServerAppwrite();
-let recipientId: string | null = null;
-let scheduleId: string | null = null;
+const recipientIds: string[] = [];
+const scheduleIds: string[] = [];
 
 try {
   const recipient = await createRecipient(CIRCLE_ID, OWNER_ID, {
@@ -30,15 +30,15 @@ try {
     careNotes: "No private information.",
     timezone: "UTC",
   });
-  recipientId = recipient.$id;
+  recipientIds.push(recipient.$id);
 
-  await updateRecipient(CIRCLE_ID, recipientId, OWNER_ID, {
+  await updateRecipient(CIRCLE_ID, recipient.$id, OWNER_ID, {
     displayName: "Updated recipient proof",
     relationship: "Synthetic test",
     careNotes: "Updated context.",
     timezone: "Asia/Dubai",
   });
-  const updated = await tables.getRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId });
+  const updated = await tables.getRow({ databaseId, tableId: TABLES.recipients, rowId: recipient.$id });
   assert.equal(updated.displayName, "Updated recipient proof");
   assert.equal(updated.timezone, "Asia/Dubai");
 
@@ -47,30 +47,44 @@ try {
     (error: unknown) => error instanceof Error && error.name === "RecipientForbiddenError",
   );
 
-  const schedule = await createSchedule(CIRCLE_ID, OWNER_ID, {
-    recipientId,
+  const secondRecipient = await createRecipient(CIRCLE_ID, OWNER_ID, {
+    displayName: "Second recipient proof",
+    relationship: "Synthetic test",
+    careNotes: "No private information.",
+    timezone: "UTC",
+  });
+  recipientIds.push(secondRecipient.$id);
+
+  const schedules = await createSchedules(CIRCLE_ID, OWNER_ID, {
+    recipientIds,
     title: "Recipient assignment proof",
     instruction: "Synthetic integration test",
     localTime: "09:15",
     active: false,
   });
-  scheduleId = schedule.$id;
-  assert.equal(schedule.recipientId, recipientId);
-  assert.equal(schedule.timezone, "Asia/Dubai");
+  scheduleIds.push(...schedules.map((schedule) => schedule.$id));
+  assert.equal(schedules.length, 2);
+  assert.deepEqual(new Set(schedules.map((schedule) => schedule.recipientId)), new Set(recipientIds));
+  assert.equal(schedules.find((schedule) => schedule.recipientId === recipient.$id)?.timezone, "Asia/Dubai");
+  assert.equal(schedules.find((schedule) => schedule.recipientId === secondRecipient.$id)?.timezone, "UTC");
 
   await assert.rejects(
-    archiveRecipient(CIRCLE_ID, recipientId, OWNER_ID),
+    archiveRecipient(CIRCLE_ID, recipient.$id, OWNER_ID),
     (error: unknown) => error instanceof Error && error.name === "RecipientInUseError",
   );
 
-  await archiveSchedule(CIRCLE_ID, scheduleId, OWNER_ID);
-  await archiveRecipient(CIRCLE_ID, recipientId, OWNER_ID);
-  const archived = await tables.getRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId });
+  await Promise.all(scheduleIds.map((scheduleId) => archiveSchedule(CIRCLE_ID, scheduleId, OWNER_ID)));
+  await Promise.all(recipientIds.map((recipientId) => archiveRecipient(CIRCLE_ID, recipientId, OWNER_ID)));
+  const archived = await tables.getRow({ databaseId, tableId: TABLES.recipients, rowId: recipient.$id });
   assert.ok(archived.archivedAt);
 
   console.log("OneDose care recipient proof passed");
-  console.table({ ownerOnly: true, profileUpdate: true, explicitScheduleAssignment: true, inUseProtection: true, softArchive: true });
+  console.table({ ownerOnly: true, profileUpdate: true, bulkScheduleAssignment: true, independentSchedules: true, inUseProtection: true, softArchive: true });
 } finally {
-  if (scheduleId) await tables.deleteRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId }).catch(() => undefined);
-  if (recipientId) await tables.deleteRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId }).catch(() => undefined);
+  for (const scheduleId of scheduleIds) {
+    await tables.deleteRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId }).catch(() => undefined);
+  }
+  for (const recipientId of recipientIds) {
+    await tables.deleteRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId }).catch(() => undefined);
+  }
 }

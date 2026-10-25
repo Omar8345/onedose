@@ -849,7 +849,7 @@ function ScheduleDialog({ schedule, recipients, onClose }: { schedule: CareSched
   const [instruction, setInstruction] = useState(schedule?.instruction ?? "");
   const [localTime, setLocalTime] = useState(schedule?.localTime ?? "09:00");
   const [active, setActive] = useState(schedule?.active ?? true);
-  const [recipientId, setRecipientId] = useState(schedule?.recipientId ?? recipients[0]?.id ?? "");
+  const [recipientIds, setRecipientIds] = useState<string[]>(schedule?.recipientId ? [schedule.recipientId] : recipients[0]?.id ? [recipients[0].id] : []);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState(false);
@@ -874,7 +874,13 @@ function ScheduleDialog({ schedule, recipients, onClose }: { schedule: CareSched
       const response = await fetch(schedule ? `/api/schedules/${schedule.id}` : "/api/schedules", {
         method: schedule ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientId, title, instruction: instruction || undefined, localTime, active }),
+        body: JSON.stringify({
+          ...(schedule ? { recipientId: recipientIds[0] } : { recipientIds }),
+          title,
+          instruction: instruction || undefined,
+          localTime,
+          active,
+        }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "The daily action could not be saved.");
@@ -893,12 +899,46 @@ function ScheduleDialog({ schedule, recipients, onClose }: { schedule: CareSched
         <form onSubmit={save}>
           <span className="section-kicker">Daily schedule</span>
           <h2 id="schedule-title">{schedule ? "Edit daily action" : "Add a daily action"}</h2>
-          <label className="invite-field">
-            <span>For</span>
-            <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} required>
-              {recipients.map((recipient) => <option value={recipient.id} key={recipient.id}>{recipient.displayName}</option>)}
-            </select>
-          </label>
+          {schedule ? (
+            <label className="invite-field">
+              <span>For</span>
+              <select value={recipientIds[0]} onChange={(event) => setRecipientIds([event.target.value])} required>
+                {recipients.map((recipient) => <option value={recipient.id} key={recipient.id}>{recipient.displayName}</option>)}
+              </select>
+            </label>
+          ) : (
+            <fieldset className="schedule-recipient-field">
+              <div className="schedule-recipient-heading">
+                <div><legend>For</legend><small>Each person gets a separate record.</small></div>
+                {recipients.length > 1 ? (
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => setRecipientIds(recipientIds.length === recipients.length ? [] : recipients.map((recipient) => recipient.id))}
+                  >
+                    {recipientIds.length === recipients.length ? "Clear all" : "Select all"}
+                  </button>
+                ) : null}
+              </div>
+              <div className="schedule-recipient-options">
+                {recipients.map((recipient) => {
+                  const selected = recipientIds.includes(recipient.id);
+                  return (
+                    <label className={`schedule-recipient-option ${selected ? "is-selected" : ""}`} key={recipient.id}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => setRecipientIds((current) => selected ? current.filter((id) => id !== recipient.id) : [...current, recipient.id])}
+                      />
+                      <span className="avatar">{initials(recipient.displayName).slice(0, 1)}</span>
+                      <span><strong>{recipient.displayName}</strong><small>{recipient.relationship || "Care recipient"}</small></span>
+                      <span className="schedule-recipient-check"><Check size={15} /></span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
           <label className="invite-field">
             <span>Action name</span>
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Morning routine" required />
@@ -920,8 +960,8 @@ function ScheduleDialog({ schedule, recipients, onClose }: { schedule: CareSched
           {message ? <p className="form-error">{message}</p> : null}
           <div className="dialog-actions">
             <button className="secondary-button" type="button" onClick={close}>Cancel</button>
-            <button className="primary-button" disabled={saving || title.trim().length < 2 || !recipientId}>
-              {saving ? "Saving…" : "Save action"}
+            <button className="primary-button" disabled={saving || title.trim().length < 2 || !recipientIds.length}>
+              {saving ? "Saving…" : recipientIds.length > 1 ? `Add ${recipientIds.length} actions` : "Save action"}
             </button>
           </div>
         </form>

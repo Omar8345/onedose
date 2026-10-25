@@ -23,8 +23,9 @@ The demonstration uses synthetic people and schedules.
 ## Primary flow
 
 1. An owner invites a caregiver through their private Appwrite Team.
-2. The owner creates one or more care profiles and assigns each daily action to
-   the correct person and timezone.
+2. The owner creates one or more care profiles and assigns a daily action to
+   one or several people. Multi-person assignment creates an independent action
+   and completion record for every selected person.
 3. The caregiver accepts the emailed link and confirms their identity with OTP.
 4. Both caregivers open the shared Today view.
 5. One selects a due action and reviews its instructions.
@@ -53,6 +54,7 @@ The demonstration uses synthetic people and schedules.
 - Alert delivery metadata is shown only to the care-circle owner.
 - Every daily action belongs to one active care profile; archiving a profile
   cannot orphan an active action.
+- A bulk assignment is a creation shortcut, never a shared completion state.
 
 ## Proof scenario
 

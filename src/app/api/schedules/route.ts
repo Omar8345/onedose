@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireCurrentUser } from "@/lib/auth/session";
 import {
-  createSchedule,
+  createSchedules,
   scheduleErrorStatus,
   ScheduleForbiddenError,
   scheduleInputSchema,
@@ -17,8 +17,12 @@ export async function POST(request: Request) {
     ]);
     const circleId = user.prefs.circleId;
     if (!circleId) return Response.json({ message: "Set up your care circle first." }, { status: 409 });
-    const schedule = await createSchedule(circleId, user.$id, input);
-    return Response.json({ ok: true, scheduleId: schedule.$id }, { status: 201 });
+    const schedules = await createSchedules(circleId, user.$id, input);
+    return Response.json({
+      ok: true,
+      scheduleId: schedules.length === 1 ? schedules[0].$id : undefined,
+      scheduleIds: schedules.map((schedule) => schedule.$id),
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return Response.json({ message: "Check the action name and daily time." }, { status: 400 });
