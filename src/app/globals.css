@@ -651,6 +651,10 @@ a {
   color: #dce9e1;
   font-size: 12px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.claim-note--featured {
+  color: #e5f0e9;
 }
 .schedule-copy .claim-note {
   color: var(--sage);
