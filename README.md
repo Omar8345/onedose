@@ -2,155 +2,181 @@
 
 ![OneDose — shared care, one clear record](public/onedose-hero.png)
 
-OneDose is a shared care handoff that prevents two caregivers from recording
-the same scheduled action twice.
+When care is shared across a family, messages and memory are not enough. OneDose
+turns recurring care tasks into one live handoff: everyone can see what is due,
+who is handling it, and what already happened.
 
-The product focuses on one claim: when two authorized caregivers act on the
-same due item concurrently, exactly one completion is accepted and every
-attempt remains explainable.
+Every action can be claimed, recorded once, corrected without erasing history,
+and synchronized across the entire care circle in real time.
 
-Built for the 2026 Appwrite Databases Hackathon with Appwrite TablesDB.
+**Live app:** [onedose.appwrite.network](https://onedose.appwrite.network)
 
-**[Open the live app](https://onedose.appwrite.network)** · **[View the source](https://github.com/Omar8345/onedose)**
+Built for the **2026 Appwrite Databases Hackathon**.
 
-## Current foundation
+## The product
 
-The current foundation includes:
+OneDose is designed around the moments where shared care usually becomes
+unclear:
 
-- a responsive Today view for shared scheduled actions
-- a handoff timeline that preserves corrections
-- a guided outcome-recording flow
-- an interactive conflict demo showing which concurrent attempt won
-- Appwrite browser and server client boundaries
-- passwordless Email OTP authentication and private Appwrite Teams
-- authenticated Appwrite Realtime updates across caregiver sessions
-- secure caregiver invitations with Appwrite Team acceptance
-- caregiver availability that suppresses alerts without removing access
-- owner-configured first-contact and overdue escalation rules
-- an owner-only alert activity ledger backed by TablesDB delivery records
-- transactional onboarding for a user's first circle and care action
-- 15-minute handling leases that stop two caregivers from performing the same action
-- owner-managed daily, weekday, and one-time actions with pause, resume, and history-preserving removal
-- multiple care-recipient profiles with per-person time zones, context, and one-person or bulk action assignment
-- a shared recipient filter across Today and Handoff, with recipient-aware history and alert records
-- a scheduled Appwrite Function for recurrence-aware generation, first-contact reminders, and overdue escalation
-- a provisioned TablesDB schema and atomic completion service
-- a live seeded dashboard and completion flow backed by TablesDB
+- **Today** brings due, upcoming, and overdue actions into one recipient-aware view.
+- **Handling claims** show who is taking responsibility before the action is recorded.
+- **Guided outcomes** capture completed, skipped, refused, and unavailable states with handoff notes.
+- **Live handoff** gives the next caregiver a readable, append-only history.
+- **Flexible schedules** support daily, selected-weekday, and one-time actions across time zones.
+- **Care circles** provide private invitations, roles, availability, and recipient profiles.
+- **Smart reminders** contact one available caregiver first, then escalate only when an action remains overdue.
+- **Corrections** preserve the original event instead of silently rewriting history.
 
-The seed remains available for repeatable testing, while real users can sign in,
-create their own private care circle, and record a shared outcome.
+Real users can sign in without a password, create a private care circle, invite
+caregivers, and start coordinating immediately. The included seed data is only
+for repeatable development and verification.
 
-## Live deployment
+## Why Appwrite
 
-OneDose is deployed with server-side rendering on Appwrite Sites. The live app
-uses Appwrite Email OTP authentication, private Teams for care-circle access,
-and TablesDB for schedules, completion attempts, and the audit trail.
+Appwrite is not an add-on to OneDose; it provides the product's identity,
+coordination, persistence, automation, and deployment layers.
+
+| Appwrite service | What it does in OneDose |
+| --- | --- |
+| **TablesDB** | Stores circles, recipients, schedules, occurrences, handling leases, outcomes, audit events, command receipts, and notification deliveries. |
+| **Auth** | Provides passwordless Email OTP sign-in and authenticated sessions. |
+| **Teams** | Isolates each care circle and powers invitations, roles, and membership revocation. |
+| **Realtime** | Synchronizes care updates across authenticated caregiver sessions without manual refreshes. |
+| **Functions** | Generates scheduled occurrences and performs hourly reminder and escalation sweeps. |
+| **Messaging** | Sends Email OTP, invitations, due reminders, and overdue alerts. |
+| **Sites** | Hosts the server-rendered Next.js application at the live production URL. |
+
+```mermaid
+flowchart LR
+    A[Caregivers] --> B[Next.js on Appwrite Sites]
+    B --> C[Appwrite Auth + Teams]
+    B <--> D[TablesDB]
+    D --> E[Appwrite Realtime]
+    E --> B
+    F[Scheduled Function] --> D
+    F --> G[Appwrite Messaging]
+    G --> A
+```
+
+## One completion, even under contention
+
+The core promise is stronger than hiding a duplicate button press. When two
+authorized caregivers act on the same due item concurrently, OneDose must accept
+exactly one completion and make every other attempt converge on that winner.
+
+The repository includes a live race test against TablesDB. Its latest verified
+run launched 25 handling claims and 25 completion requests simultaneously:
+
+| Proof | Result |
+| --- | ---: |
+| Handling claims accepted | **1 of 25** |
+| Competing claims blocked | **24 of 25** |
+| Completions accepted | **1 of 25** |
+| Conflicting completions rejected | **24 of 25** |
+| Audit events created | **1** |
+| Command receipts created | **1** |
+| Authenticated views converged | **Yes** |
+
+The protection combines a short handling lease, optimistic occurrence versions,
+idempotency receipts, and append-only audit events. Retries can safely return the
+recorded winner without producing another completion.
 
 ## Run locally
 
+### 1. Install and configure
+
+Use Node.js 20 or newer and an Appwrite project with TablesDB enabled.
+
 ```bash
-cp .env.example .env.local
+git clone https://github.com/Omar8345/onedose.git
+cd onedose
 npm install
-npm run dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The public Appwrite
-endpoint, project ID, and database ID are included in `.env.example`. Add your
-own server API key to `.env.local`; never commit it. The key needs TablesDB
-schema/read/write permissions, `sessions.read`, `sessions.write`, `users.read`,
-`users.write`, `teams.read`, and `teams.write` for the server-rendered Email OTP,
-invitation, caregiver revocation, Messaging target, and short-lived Realtime
-token flows.
+The public endpoint, project ID, and database ID are already documented in
+`.env.example`. Add your own server API key to `.env.local`; never commit it.
+The key needs TablesDB schema/read/write permissions plus `sessions.read`,
+`sessions.write`, `users.read`, `users.write`, `teams.read`, and `teams.write`.
 
-Provision the TablesDB schema after adding an API key with database schema
-permissions:
+### 2. Provision the database
 
 ```bash
 npm run db:provision
 ```
 
-The command is idempotent: it creates missing tables and verifies tables that
-already exist. It stops instead of silently changing an incomplete schema.
+Provisioning is idempotent. It creates missing tables and verifies existing
+ones, stopping if it finds an incomplete or incompatible schema.
 
-Seed a synthetic care circle after provisioning the schema:
+Optional synthetic data can be added with:
 
 ```bash
 npm run db:seed
 ```
 
-The seed command is also idempotent. It creates Nora's care circle, two demo
-caregivers, a daily midday schedule, and one due occurrence for the current
-Dubai date. The rows use deterministic IDs and remain isolated from
-authenticated care circles; only the verification scripts use them.
+The seed creates a deterministic, isolated care circle for development and test
+scripts. It does not appear inside authenticated user circles.
 
-Run the live concurrency proof after provisioning and seeding:
+### 3. Start OneDose
 
 ```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Verify the system
+
+These scripts exercise the real Appwrite-backed services and remove their
+temporary records afterward:
+
+```bash
+npm run lint
+npm run build
+npm run test:schedules
+npm run test:reminders
+npm run test:safety
+npm run test:caregivers
+npm run test:recipients
 npm run test:race
 ```
 
-Verify reminder routing and idempotency after provisioning:
+| Script | What it proves |
+| --- | --- |
+| `test:schedules` | Recurrence, editing, pause/resume, removal authorization, and preserved history. |
+| `test:reminders` | First-contact routing, availability fallback, overdue escalation, and duplicate-delivery prevention. |
+| `test:safety` | Membership authorization, idempotent retries, concurrent corrections, and stale-write rejection. |
+| `test:caregivers` | Team revocation, owner protection, invitation cancellation, and immediate access removal. |
+| `test:recipients` | Owner-only profile changes, bulk assignment, independent schedules, and safe archival. |
+| `test:race` | One winner under 25 simultaneous claims and completion requests. |
 
-```bash
-npm run test:reminders
-```
+Set `KEEP_RACE_DATA=1` if you want to inspect the race-test rows before cleanup.
 
-The reminder proof creates one due item and one overdue item, runs competing
-sweeps, and verifies that the first contact gets the due reminder while every
-available caregiver gets the escalation. An unavailable caregiver is excluded.
-It runs in dry-run mode and removes its synthetic rows afterward.
+## Reminder function
 
-Verify that outsiders are rejected and retries remain idempotent:
+The production worker lives in [`functions/reminders`](functions/reminders). It
+runs hourly to create missing occurrences, notify the first available caregiver,
+and escalate overdue actions to the remaining available circle members.
+`notification_deliveries` makes repeated function executions safe.
 
-```bash
-npm run test:safety
-```
+Deploy it as an Appwrite Function with:
 
-The safety proof rejects a non-member completion, accepts one authorized
-completion, replays an identical request without another write, and rejects a
-changed payload that reuses the same idempotency key. It then races 25
-corrections against the winning event, accepts exactly one, preserves both
-audit entries, and rejects a stale correction without overwriting the winner.
+- root directory: `functions/reminders`
+- entrypoint: `src/main.js`
+- build command: `npm install`
+- schedule: every 60 minutes
+- scopes: `rows.read`, `rows.write`, `messages.write`, and `teams.read`
 
-Verify caregiver revocation policy protections:
+Configure an Appwrite email provider before disabling dry-run mode. The complete
+function setup is documented in
+[`functions/reminders/README.md`](functions/reminders/README.md).
 
-```bash
-npm run test:caregivers
-```
+## Architecture and product contract
 
-The caregiver proof creates temporary Appwrite users and a Team, revokes a real
-Team membership, verifies the persisted member is revoked, and confirms the
-caregiver's next mutation is rejected. It also checks owner protection and the
-pending-invitation cancellation policy, then removes all temporary data.
+- [`docs/product.md`](docs/product.md) defines the user flows, safety invariants, boundaries, and edge cases.
+- [`docs/data-model.md`](docs/data-model.md) documents every TablesDB table, index, permission, reminder sweep, and completion transaction.
+- [`docs/decisions.md`](docs/decisions.md) records the technical decisions behind concurrency, history, access, Realtime, reminders, and archival.
 
-Verify care-profile ownership, assignment, and archival protections:
-
-```bash
-npm run test:recipients
-```
-
-The recipient proof creates and edits synthetic profiles, rejects a caregiver
-write, assigns one action to multiple profiles as independent schedules,
-prevents archival while those actions remain active, then confirms
-history-preserving archival.
-
-The production worker lives in [`functions/reminders`](functions/reminders).
-Deploy that folder as an Appwrite Function with a 60-minute interval, grant
-`rows.read`, `rows.write`, `messages.write`, and `teams.read`, and configure an
-Appwrite email provider. Full settings are in the function's README.
-
-The race test confirms two caregiver views see the same due occurrence, sends
-25 simultaneous handling claims and accepts exactly one, then sends
-25 completion requests at the same time through the real completion service.
-It requires exactly one accepted request, one audit event, one command receipt,
-and a final version of one. The other 24 requests must return the recorded
-winner, and both refreshed views must converge on that result. Test rows are
-removed when the run finishes; set `KEEP_RACE_DATA=1` to inspect them afterward.
-
-## Product contract
-
-The safety invariants and edge cases are documented in
-[`docs/product.md`](docs/product.md). Technical choices are recorded in
-[`docs/decisions.md`](docs/decisions.md). The TablesDB tables, indexes,
-permissions, and completion transaction are described in
-[`docs/data-model.md`](docs/data-model.md).
+OneDose is a coordination and record-keeping tool. Its schedules, occurrences,
+outcomes, people, and notifications are intentionally explicit so that every
+visible state can be traced back to durable Appwrite data.
