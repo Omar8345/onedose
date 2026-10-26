@@ -4,6 +4,12 @@
 
 ![OneDose — shared care, one clear record](public/onedose-hero.png)
 
+### 🎬 Product Demo
+
+**[▶ Watch the OneDose Demo (1:51)](https://cap.so/s/41tw3xw36n2g1yj)**
+
+A 1-minute, 51-second walkthrough of OneDose's shared care coordination, handling claims, and real-time handoffs.
+
 When care is shared across a family, messages and memory aren't enough.
 
 Did someone handle the medication? Who's taking care of the next task? Was an action completed, skipped, or simply forgotten?
@@ -12,11 +18,11 @@ Did someone handle the medication? Who's taking care of the next task? Was an ac
 
 Caregivers can coordinate recurring tasks, claim responsibility, record outcomes, and follow a clear history of what happened — all inside a private care circle.
 
-**[🚀 Try OneDose](https://onedose.appwrite.network)** · **[Source Code](https://github.com/Omar8345/onedose)**
+**[🚀 Live App](https://onedose.appwrite.network)** · **[🎬 Watch Demo](https://cap.so/s/41tw3xw36n2g1yj)** · **[Source Code](https://github.com/Omar8345/onedose)**
 
 Built for the **2026 Appwrite Databases Hackathon**.
 
-> **Note about the live demo:** Automated email reminders and overdue alerts are disabled in the hosted demo due to Appwrite plan limitations (my edu plan is expiring 😢). The functionality is fully implemented in the source code and can be enabled with the appropriate Appwrite plan and email provider configuration. All core care-coordination features remain available.
+> **Live demo note:** Automated email reminders and overdue alerts are disabled in the hosted demo due to Appwrite plan limitations. The notification functionality is implemented in the source code and can be enabled with the appropriate plan and email provider configuration. Core care-coordination features remain available.
 
 ---
 
@@ -125,7 +131,7 @@ Retries can return the previously recorded result without creating a second comp
 
 The hosted version focuses on the core coordination experience: private care circles, schedules, handling claims, recorded outcomes, history, and live synchronization.
 
-**Automated email reminders and overdue escalation are currently disabled in the hosted demo.**
+**Automated email reminders and overdue escalation are currently disabled in the hosted demo due to Appwrite plan limitations.**
 
 The reminder and escalation implementation remains in the repository, along with integration tests for caregiver selection, availability fallback, overdue escalation, and duplicate-delivery prevention.
 
@@ -169,6 +175,8 @@ Required permissions include:
 - `sessions.read`, `sessions.write`
 - `users.read`, `users.write`
 - `teams.read`, `teams.write`
+
+**Never commit API keys or other secrets to version control.**
 
 ### 3. Provision TablesDB
 
@@ -285,4 +293,4 @@ It depends on knowing whether someone has taken responsibility, whether the acti
 
 Built with **Next.js and Appwrite** for the **2026 Appwrite Databases Hackathon**.
 
-**[Launch OneDose](https://onedose.appwrite.network)**
+**[🚀 Launch OneDose](https://onedose.appwrite.network)** · **[🎬 Watch Demo (1:51)](https://cap.so/s/41tw3xw36n2g1yj)**
