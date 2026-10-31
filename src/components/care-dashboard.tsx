@@ -71,6 +71,7 @@ type ClaimResponse = {
     id: string;
     status: string;
     claimedBy: string | null;
+    claimedByName: string | null;
     claimedAt: string | null;
     claimExpiresAt: string | null;
   };
@@ -146,6 +147,7 @@ function ClaimNote({
       {occurrence.claimIsMine
         ? "You’re handling this"
         : `${occurrence.claimedByName} is handling this`}{" "}
+      {occurrence.claimedAt ? `· claimed at ${occurrence.claimedAt} ` : ""}
       · <ClaimCountdown expiresAt={occurrence.claimExpiresAt} />
     </small>
   );
@@ -214,6 +216,15 @@ export function CareDashboard({
   const [isRefreshing, startRefresh] = useTransition();
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [coordinationError, setCoordinationError] = useState("");
+
+  useEffect(() => {
+    const expiries = circle.occurrences.map((item) => item.claimExpiresAt).filter((value): value is string => Boolean(value));
+    const timer = window.setTimeout(() => {
+      setOccurrenceOverrides({});
+      startRefresh(() => router.refresh());
+    }, Math.max(1000, Math.min(60000, ...expiries.map((value) => Date.parse(value) - Date.now() + 100))));
+    return () => window.clearTimeout(timer);
+  }, [circle, router]);
 
   const occurrences = circle.occurrences.map(
     (item) => occurrenceOverrides[item.id] ?? item,
@@ -449,6 +460,7 @@ export function CareDashboard({
         );
       const result = payload as ClaimResponse;
       if (result.kind === "already_recorded") {
+        setOccurrenceOverrides({});
         startRefresh(() => router.refresh());
         return;
       }
@@ -461,12 +473,13 @@ export function CareDashboard({
           claimedByName: result.occurrence.claimedBy
             ? claimIsMine
               ? "You"
-              : "Another caregiver"
+              : result.occurrence.claimedByName ?? "Another caregiver"
             : undefined,
           claimedAt: result.occurrence.claimedAt
             ? new Intl.DateTimeFormat("en", {
                 hour: "numeric",
                 minute: "2-digit",
+                timeZone: circle.timezone,
               }).format(new Date(result.occurrence.claimedAt))
             : undefined,
           claimExpiresAt: result.occurrence.claimExpiresAt ?? undefined,
@@ -2732,6 +2745,11 @@ function HandoffView({
   const dueCount = occurrences.filter(
     (item) => item.status === "due" || item.status === "overdue",
   ).length;
+  const latest = timeline[0];
+  const current = latest?.occurrenceId ? occurrences.find((item) => item.id === latest.occurrenceId) : undefined;
+  const latestTime = latest?.occurredAt ? new Intl.DateTimeFormat("en", {
+    dateStyle: "medium", timeStyle: "short", timeZone: timezone,
+  }).format(new Date(latest.occurredAt)) : latest ? `${latest.dateLabel} · ${latest.time}` : "";
   const eventGroups = timeline.reduce<
     Array<{ key: string; label: string; events: CareCircle["timeline"] }>
   >((groups, event) => {
@@ -2768,6 +2786,16 @@ function HandoffView({
         onChange={onRecipientFilterChange}
       />
 
+      <section className="latest-handoff" aria-label="Latest handoff">
+        <div className="latest-handoff-icon"><MessageSquareText size={22} /></div>
+        <div>
+          <span className="section-kicker">Latest handoff</span>
+          <h2>{latest?.title ?? "A fresh start for this care circle"}</h2>
+          <p>{latest?.detail ?? "The first recorded outcome will appear here, ready for the next caregiver."}</p>
+          {latest ? <small>{latest.recipientName} · {latestTime}{latest.actorName ? ` · ${latest.actorName}` : ""}</small> : null}
+        </div>
+        {latest ? <span className="latest-handoff-status">{current?.status ?? latest.outcome ?? "Recorded"}</span> : null}
+      </section>
       <div className="handoff-layout">
         <section className="handoff-feed">
           {eventGroups.map((group) => (

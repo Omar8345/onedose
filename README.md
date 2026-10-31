@@ -230,6 +230,23 @@ npm run test:race
 
 Integration tests interact with real Appwrite services and clean up their temporary test records.
 
+`test:safety` requires a running Next.js server (`npm run dev`) at
+`TEST_BASE_URL` (default `http://127.0.0.1:3000`). Both processes must use the
+same Appwrite endpoint, project, database, and server API key configuration.
+The provisioned tables and indexes must exist; the API key needs TablesDB,
+Users/session, and Teams/membership access. The test creates its own synthetic
+user, team, circle, membership, and occurrence; it does not use demo accounts.
+It checks configuration and the unauthenticated completion route before creating
+fixtures. HTTP requests time out after 15 seconds. Cleanup attempts all tracked
+resources, including claims and sessions, and reports failures.
+
+Completion receipts created before commit `352e1dd` used a fingerprint containing
+`occurredAt`. Retrying those keys returns a conflict even for otherwise identical
+input. Existing receipts are not migrated or accepted with weakened comparisons.
+Current receipts ignore the server-generated timestamp while retaining semantic
+conflict detection. Replay requires current active recording membership; revoked
+caregivers receive no replay data.
+
 To retain race-test data for inspection:
 
 ```bash
@@ -294,3 +311,8 @@ It depends on knowing whether someone has taken responsibility, whether the acti
 Built with **Next.js and Appwrite** for the **2026 Appwrite Databases Hackathon**.
 
 **[🚀 Launch OneDose](https://onedose.appwrite.network)** · **[🎬 Watch Demo (1:51)](https://cap.so/s/41tw3xw36n2g1yj)**
+
+Claim responses refresh current TablesDB claim and occurrence state with active circle
+and Team membership checks. Losing caregivers see the current holder and claim time;
+released or expired leases appear available. The handoff view summarizes the latest
+filtered audit event above history using existing data and the selected timezone.

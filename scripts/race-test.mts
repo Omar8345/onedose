@@ -6,7 +6,7 @@ import { Query, type Models } from "node-appwrite";
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
-const [{ CompletionClaimedByAnotherError, completeOccurrence }, { claimOccurrence, releaseOccurrenceClaim }, { getCareCircle }, { getServerAppwrite }, { stableRowId }, { TABLES }] = await Promise.all([
+const [{ CompletionClaimedByAnotherError, completeOccurrence }, { claimOccurrence, releaseOccurrenceClaim, getOccurrenceClaimState, ClaimForbiddenError }, { getCareCircle }, { getServerAppwrite }, { stableRowId }, { TABLES }] = await Promise.all([
   import("../src/lib/data/complete-occurrence"),
   import("../src/lib/data/manage-occurrence-claim"),
   import("../src/lib/data/get-care-circle"),
@@ -107,8 +107,16 @@ try {
   assert.equal(blockedClaims.length, REQUEST_COUNT - 1, "all other claim attempts must see the winner");
   const firstClaimWinner = wonClaims[0]?.occurrence.claimedBy;
   assert.ok(firstClaimWinner, "the winning caregiver must be stored on the occurrence");
+  const conflictState = await getOccurrenceClaimState(occurrenceId, actors[0]);
+  assert.equal(conflictState.occurrence.claimedBy, firstClaimWinner);
+  assert.ok(conflictState.occurrence.claimedAt);
+  const revokedRowId = stableRowId("mem", `${circleId}:${actors[1]}`);
+  await tables.updateRow({ databaseId, tableId: TABLES.members, rowId: revokedRowId, data: { status: "revoked" } });
+  await assert.rejects(getOccurrenceClaimState(occurrenceId, actors[1]), ClaimForbiddenError);
+  await tables.updateRow({ databaseId, tableId: TABLES.members, rowId: revokedRowId, data: { status: "active" } });
   const released = await releaseOccurrenceClaim(occurrenceId, firstClaimWinner);
   assert.equal(released.kind, "released", "the winning caregiver must be able to release the action");
+  assert.equal((await getOccurrenceClaimState(occurrenceId, actors[0])).kind, "not_claimed");
   const secondCaregiver = actors.find((actor) => actor !== firstClaimWinner);
   assert.ok(secondCaregiver);
   const reassigned = await claimOccurrence(occurrenceId, secondCaregiver);
@@ -119,6 +127,7 @@ try {
     rowId: stableRowId("clm", occurrenceId),
     data: { expiresAt: new Date(Date.now() - 60_000).toISOString() },
   });
+  assert.equal((await getOccurrenceClaimState(occurrenceId, actors[0])).kind, "not_claimed");
   const expiredTakeover = await claimOccurrence(occurrenceId, firstClaimWinner);
   assert.equal(expiredTakeover.kind, "claimed", "an expired handling lease must be replaceable");
   const claimWinner = expiredTakeover.occurrence.claimedBy;

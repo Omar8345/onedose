@@ -144,6 +144,10 @@ export async function getCareCircle(circleId: string, viewer: { id: string; name
       : `${actor} corrected the outcome to ${event.outcome}${event.note ? `: ${event.note}` : ""}`;
     return {
       id: event.$id,
+      occurrenceId: event.occurrenceId,
+      occurredAt: event.occurredAt,
+      actorName: actor,
+      outcome: event.outcome as import("@/lib/types").RecordedOutcome,
       recipientId: careRecipient?.$id ?? "",
       recipientName: careRecipient?.displayName ?? "Care recipient",
       dateKey: localDateKey(new Date(event.occurredAt), circle.timezone),

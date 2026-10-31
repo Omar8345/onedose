@@ -79,15 +79,29 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       rowId: commandId,
     });
 
-    if (existing.requestFingerprint !== requestFingerprint) {
-      throw new CompletionInputConflictError();
-    }
-
+    // Authorize before comparing fingerprints or returning receipt details.
     const occurrence = await tables.getRow<OccurrenceRow>({
       databaseId,
       tableId: TABLES.occurrences,
       rowId: existing.occurrenceId,
     });
+    let member: MemberRow;
+    try {
+      member = await tables.getRow<MemberRow>({
+        databaseId,
+        tableId: TABLES.members,
+        rowId: stableRowId("mem", `${occurrence.circleId}:${input.actorId}`),
+      });
+    } catch (error) {
+      if (isMissing(error)) throw new CompletionForbiddenError();
+      throw error;
+    }
+    if (member.circleId !== occurrence.circleId || !canReadOrRecordCircle(member, input.actorId)) {
+      throw new CompletionForbiddenError();
+    }
+    if (existing.requestFingerprint !== requestFingerprint) {
+      throw new CompletionInputConflictError();
+    }
 
     return { kind: "replayed", occurrence, eventId: existing.eventId };
   } catch (error) {

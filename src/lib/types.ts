@@ -21,6 +21,10 @@ export type Occurrence = {
 };
 
 export type TimelineEvent = {
+  occurrenceId?: string;
+  occurredAt?: string;
+  actorName?: string;
+  outcome?: RecordedOutcome;
   id: string;
   recipientId: string;
   recipientName: string;

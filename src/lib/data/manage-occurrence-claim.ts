@@ -1,6 +1,6 @@
 import "server-only";
 
-import { AppwriteException, Permission, Role } from "node-appwrite";
+import { AppwriteException, Permission, Query, Role } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
@@ -43,7 +43,7 @@ function withClaim(occurrence: OccurrenceRow, claim?: OccurrenceClaimRow): Occur
   };
 }
 
-async function activeMember(occurrence: OccurrenceRow, actorId: string, transactionId: string) {
+async function activeMember(occurrence: OccurrenceRow, actorId: string, transactionId?: string) {
   const { databaseId, tables } = getServerAppwrite();
   try {
     const member = await tables.getRow<MemberRow>({
@@ -52,12 +52,31 @@ async function activeMember(occurrence: OccurrenceRow, actorId: string, transact
       rowId: stableRowId("mem", `${occurrence.circleId}:${actorId}`),
       transactionId,
     });
-    if (!canReadOrRecordCircle(member, actorId)) throw new ClaimForbiddenError();
+    if (member.circleId !== occurrence.circleId || !canReadOrRecordCircle(member, actorId)) throw new ClaimForbiddenError();
     return member;
   } catch (error) {
     if (isMissing(error)) throw new ClaimForbiddenError();
     throw error;
   }
+}
+
+// Re-read after contention: the winning lease may already have ended or moved.
+export async function getOccurrenceClaimState(occurrenceId: string, actorId: string): Promise<OccurrenceClaimResult> {
+  const { databaseId, tables, teams } = getServerAppwrite();
+  let occurrence = await tables.getRow<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
+  await activeMember(occurrence, actorId);
+  const memberships = await teams.listMemberships({ teamId: occurrence.teamId, queries: [Query.equal("userId", [actorId])] });
+  if (!memberships.memberships.some((member) => member.confirm)) throw new ClaimForbiddenError();
+  let claim: OccurrenceClaimRow | undefined;
+  try {
+    claim = await tables.getRow<OccurrenceClaimRow>({ databaseId, tableId: TABLES.claims, rowId: stableRowId("clm", occurrenceId) });
+  } catch (error) { if (!isMissing(error)) throw error; }
+  occurrence = await tables.getRow<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
+  await activeMember(occurrence, actorId);
+  if (occurrence.status !== "due") return { kind: "already_recorded", occurrence: withClaim(occurrence) };
+  const active = claim && hasActiveClaim(claim) && occurrence.claimedBy === claim.actorId
+    && occurrence.claimedAt === claim.claimedAt;
+  return { kind: active ? "already_claimed" : "not_claimed", occurrence: withClaim(occurrence, active ? claim : undefined) };
 }
 
 export async function claimOccurrence(occurrenceId: string, actorId: string): Promise<OccurrenceClaimResult> {
@@ -139,14 +158,7 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
     if (!isConflict(error)) throw error;
-    const winner = await tables.getRow<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
-    if (winner.status !== "due") return { kind: "already_recorded", occurrence: winner };
-    const winningClaim = await tables.getRow<OccurrenceClaimRow>({
-      databaseId,
-      tableId: TABLES.claims,
-      rowId: stableRowId("clm", occurrenceId),
-    });
-    return { kind: "already_claimed", occurrence: withClaim(winner, winningClaim) };
+    return getOccurrenceClaimState(occurrenceId, actorId);
   }
 }
 
@@ -207,7 +219,6 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
     if (!isMissing(error) && !isConflict(error)) throw error;
-    const current = await tables.getRow<OccurrenceRow>({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
-    return { kind: "not_claimed", occurrence: withClaim(current) };
+    return getOccurrenceClaimState(occurrenceId, actorId);
   }
 }

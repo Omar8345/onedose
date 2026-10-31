@@ -3670,3 +3670,11 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+.latest-handoff { display:flex; align-items:flex-start; gap:16px; padding:24px; margin:24px 0; border:1px solid var(--line, #e4e0d6); border-radius:16px; background:#f0f3ed; }
+.latest-handoff-icon { color:#526b5a; padding-top:4px; }
+.latest-handoff h2 { margin:8px 0; font-size:20px; }
+.latest-handoff p { margin:0 0 10px; line-height:1.6; }
+.latest-handoff small { color:#626b66; line-height:1.6; }
+.latest-handoff-status { margin-left:auto; background:#fff; padding:6px 12px; border-radius:20px; text-transform:capitalize; font-size:12px; white-space:nowrap; }
+@media (max-width:600px) { .latest-handoff { padding:18px; gap:12px; flex-wrap:wrap; } .latest-handoff > div:nth-child(2) { flex:1; min-width:180px; } .latest-handoff-status { margin-left:34px; } }

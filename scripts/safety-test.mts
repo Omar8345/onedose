@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import nextEnv from "@next/env";
-import { Query, type Models } from "node-appwrite";
+import { Query } from "node-appwrite";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -18,8 +18,15 @@ const [
   import("../src/lib/domain/schema"),
 ]);
 
-const { databaseId, tables, users } = getServerAppwrite();
+
 const runId = Date.now().toString(36);
+const actorId = `safe_actor_${runId}`;
+const teamId = `safe_team_${runId}`;
+const circleId = `safe_circle_${runId}`;
+const { stableRowId } = await import("../src/lib/domain/ids");
+const memberId = stableRowId("mem", `${circleId}:${actorId}`);
+const createdRows: Array<{ tableId: string; rowId: string }> = [];
+let createdTeam = false;
 const occurrenceId = `safe_occ_${runId}`;
 const dueAt = new Date().toISOString();
 let createdOccurrence = false;
@@ -35,18 +42,42 @@ async function relatedRows(tableId: string) {
   });
 }
 
-async function removeRows(tableId: string, rows: Models.Row[]) {
-  for (const row of rows) await tables.deleteRow({ databaseId, tableId, rowId: row.$id });
-}
 
+const required = ["NEXT_PUBLIC_APPWRITE_ENDPOINT", "NEXT_PUBLIC_APPWRITE_PROJECT_ID", "NEXT_PUBLIC_APPWRITE_DATABASE_ID", "APPWRITE_API_KEY"];
+const missing = required.filter((key) => !process.env[key]);
+if (missing.length) throw new Error(`Safety test missing configuration: ${missing.join(", ")}`);
+const { databaseId, tables, teams, users } = getServerAppwrite();
+const baseUrl = new URL(process.env.TEST_BASE_URL ?? "http://127.0.0.1:3000");
 try {
+  const response = await fetch(new URL("/api/occurrences/safety-preflight/complete", baseUrl), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idempotencyKey: "safety-preflight-request", outcome: "completed" }),
+    signal: AbortSignal.timeout(15000), redirect: "error",
+  });
+  assert.equal(response.status, 401, "expected OneDose's unauthenticated completion route to return 401");
+} catch {
+  throw new Error(`Safety test requires a running OneDose server at ${baseUrl.origin} with matching Appwrite configuration (start npm run dev).`);
+}
+try {
+  await users.create({ userId: actorId, email: `${actorId}@example.invalid`, name: "Synthetic safety caregiver" });
+  createdUser = true;
+  await teams.create({ teamId, name: "Safety test", roles: ["caregiver"] });
+  createdTeam = true;
+  await teams.createMembership({ teamId, membershipId: `safe_mem_${runId}`, userId: actorId, roles: ["caregiver"] });
+  for (const row of [
+    { tableId: TABLES.circles, rowId: circleId, data: { name: "Safety test", teamId, timezone: "UTC", archivedAt: null } },
+    { tableId: TABLES.members, rowId: memberId, data: { circleId, userId: actorId, role: "caregiver", status: "active", lastMutationAt: null } },
+  ]) {
+    await tables.createRow({ databaseId, ...row, permissions: [] });
+    createdRows.push(row);
+  }
   await tables.createRow({
     databaseId,
     tableId: TABLES.occurrences,
     rowId: occurrenceId,
     data: {
-      circleId: "demo_circle_nora",
-      teamId: "demo_team",
+      circleId,
+      teamId,
       scheduleId: "demo_schedule_midday",
       dueAt,
       status: "due",
@@ -70,7 +101,7 @@ try {
 
   const input = {
     occurrenceId,
-    actorId: "demo_omar",
+    actorId,
     idempotencyKey: `retry-${runId}-request`,
     outcome: "completed" as const,
     note: "Safety proof",
@@ -78,13 +109,6 @@ try {
   };
   const claim = await claimOccurrence(occurrenceId, input.actorId);
   assert.equal(claim.kind, "claimed", "the authorized caregiver must claim the action first");
-  try {
-    await users.get({ userId: input.actorId });
-  } catch (error) {
-    if ((error as { code?: number }).code !== 404) throw error;
-    await users.create({ userId: input.actorId, email: `safety-${runId}@example.invalid`, name: "Synthetic safety caregiver" });
-    createdUser = true;
-  }
   const session = await users.createSession({ userId: input.actorId });
   sessionId = session.$id;
   const post = async (body: Record<string, unknown>) => {
@@ -92,12 +116,16 @@ try {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: `onedose_session=${session.secret}` },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000), redirect: "error",
     });
-    return { status: response.status, body: await response.json() };
+    try {
+      return { status: response.status, body: await response.json() };
+    } catch { throw new Error(`Completion endpoint returned non-JSON (HTTP ${response.status}); check the server and TEST_BASE_URL.`); }
   };
   const body = { idempotencyKey: input.idempotencyKey, outcome: input.outcome, note: input.note };
   const first = await post(body);
-  assert.equal(first.status, 200);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.kind, "accepted");
   await new Promise((resolve) => setTimeout(resolve, 30));
   const retry = await post(body);
   assert.equal(retry.status, 200, "identical HTTP retry must replay despite a new server timestamp");
@@ -120,7 +148,7 @@ try {
 
   const correctionInputs = Array.from({ length: 25 }, (_, index) => ({
     occurrenceId,
-    actorId: index % 2 === 0 ? "demo_omar" : "demo_maya",
+    actorId,
     idempotencyKey: `correction-${runId}-${index.toString().padStart(2, "0")}`,
     outcome: (index % 2 === 0 ? "skipped" : "unavailable") as "skipped" | "unavailable",
     note: `Concurrent correction ${index + 1}`,
@@ -158,6 +186,16 @@ try {
   assert.equal(correctionEvent?.type, "outcome_corrected");
   assert.equal(correctionEvent?.supersedesEventId, accepted.eventId);
 
+  await tables.updateRow({ databaseId, tableId: TABLES.members, rowId: memberId, data: { status: "revoked" } });
+  await teams.deleteMembership({ teamId, membershipId: `safe_mem_${runId}` });
+  await assert.rejects(completeOccurrence(input), CompletionForbiddenError);
+  for (const retryBody of [body, { ...body, note: "Changed after revocation" }]) {
+    const revoked = await post(retryBody);
+    assert.equal(revoked.status, 403, "revoked replay must not expose receipt details");
+    assert.equal(revoked.body.occurrence, undefined);
+    assert.equal(revoked.body.kind, undefined);
+  }
+  console.log("Revoked caregiver replay denied, including changed-input retry");
   console.log("OneDose access and retry proof passed");
   console.table({
     unauthorizedAttemptRejected: true,
@@ -172,15 +210,24 @@ try {
     finalVersion: occurrence.version,
   });
 } finally {
-  if (sessionId) await users.deleteSession({ userId: "demo_omar", sessionId });
-  if (createdUser) await users.delete({ userId: "demo_omar" });
+  const failures: unknown[] = [];
+  const cleanup = async (action: () => Promise<unknown>) => {
+    try { await action(); } catch (error) {
+      if ((error as { code?: number }).code !== 404) failures.push(error);
+    }
+  };
+  if (sessionId) await cleanup(() => users.deleteSession({ userId: actorId, sessionId: sessionId! }));
   if (createdOccurrence) {
-    const [events, commands] = await Promise.all([
-      relatedRows(TABLES.events),
-      relatedRows(TABLES.commands),
-    ]);
-    await removeRows(TABLES.commands, commands.rows);
-    await removeRows(TABLES.events, events.rows);
-    await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId });
+    for (const tableId of [TABLES.commands, TABLES.events, TABLES.claims]) {
+      await cleanup(async () => {
+        const rows = await relatedRows(tableId);
+        for (const row of rows.rows) await cleanup(() => tables.deleteRow({ databaseId, tableId, rowId: row.$id }));
+      });
+    }
+    await cleanup(() => tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrenceId }));
   }
+  for (const row of createdRows.reverse()) await cleanup(() => tables.deleteRow({ databaseId, ...row }));
+  if (createdTeam) await cleanup(() => teams.delete({ teamId }));
+  if (createdUser) await cleanup(() => users.delete({ userId: actorId }));
+  if (failures.length) throw new AggregateError(failures, "Safety test cleanup failed; inspect synthetic resources for this run.");
 }
