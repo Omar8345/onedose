@@ -1,3 +1,4 @@
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 
 import {
@@ -14,6 +15,7 @@ export async function DELETE(
     await revokeCaregiver(membershipId);
     return Response.json({ ok: true });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof CaregiverManagementForbiddenError) {
       return Response.json({ message: error.message }, { status: 403 });
     }

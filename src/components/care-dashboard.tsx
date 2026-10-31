@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { Channel, type RealtimeSubscription } from "appwrite";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { DEMO_RESTRICTION, isProtectedCircle, isDemoCreatedSchedule } from "@/lib/demo/protection";
 import { createRealtime } from "@/lib/appwrite/client";
 import { OneDoseLogo } from "@/components/onedose-logo";
 import {
@@ -182,13 +183,18 @@ function ClaimCountdown({ expiresAt }: { expiresAt?: string }) {
 }
 
 export function CareDashboard({
-  circle,
+  circle: initialCircle,
   viewer,
 }: {
   circle: CareCircle;
   viewer: { id: string; name: string; email: string };
 }) {
   const router = useRouter();
+  const [snapshot, setSnapshot] = useState({source:initialCircle,value:initialCircle});
+  const circle=snapshot.source===initialCircle?snapshot.value:initialCircle;
+  const [refreshError,setRefreshError]=useState("");
+  const [accessLost,setAccessLost]=useState(false);
+  const refreshInFlight=useRef(false);
   const [view, setView] = useState<View>("today");
   const [demoState, setDemoState] = useState<DemoState>("idle");
   const [selected, setSelected] = useState<Occurrence | null>(null);
@@ -198,6 +204,21 @@ export function CareDashboard({
   const [occurrenceOverrides, setOccurrenceOverrides] = useState<
     Record<string, Occurrence>
   >({});
+  const refreshSnapshot=useCallback(async()=>{
+    if(refreshInFlight.current)return;
+    refreshInFlight.current=true;
+    try {
+      const response=await fetch("/api/circle/snapshot",{cache:"no-store",signal:AbortSignal.timeout(15000)});
+      if(response.status===401 || response.status===403){setAccessLost(true);window.location.reload();return;}
+      if(!response.ok)throw new Error("Snapshot unavailable");
+      const payload=await response.json();
+      if(!payload.circle || payload.circle.id!==initialCircle.id || payload.viewerId!==viewer.id) {setAccessLost(true);window.location.reload();return;}
+      setSnapshot({source:initialCircle,value:payload.circle});
+      setOccurrenceOverrides({});
+      setRefreshError("");
+    }catch{setRefreshError("Cannot refresh right now. Showing your last confirmed data.");}
+    finally{refreshInFlight.current=false;}
+  },[initialCircle,viewer.id]);
   const [note, setNote] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -218,13 +239,13 @@ export function CareDashboard({
   const [coordinationError, setCoordinationError] = useState("");
 
   useEffect(() => {
+    if(refreshError)return;
     const expiries = circle.occurrences.map((item) => item.claimExpiresAt).filter((value): value is string => Boolean(value));
     const timer = window.setTimeout(() => {
-      setOccurrenceOverrides({});
-      startRefresh(() => router.refresh());
+      void refreshSnapshot();
     }, Math.max(1000, Math.min(60000, ...expiries.map((value) => Date.parse(value) - Date.now() + 100))));
     return () => window.clearTimeout(timer);
-  }, [circle, router]);
+  }, [circle, refreshSnapshot, refreshError]);
 
   const occurrences = circle.occurrences.map(
     (item) => occurrenceOverrides[item.id] ?? item,
@@ -322,10 +343,9 @@ export function CareDashboard({
           );
           if (disposed || (!isCircleChange && !isTeamChange)) return;
           setLiveStatus("live");
-          setOccurrenceOverrides({});
           if (refreshTimer) clearTimeout(refreshTimer);
           refreshTimer = setTimeout(
-            () => startRefresh(() => router.refresh()),
+            () => { void refreshSnapshot(); },
             120,
           );
         });
@@ -361,7 +381,7 @@ export function CareDashboard({
       void subscription?.unsubscribe();
       void realtime?.disconnect();
     };
-  }, [circle.id, circle.teamId, router, startRefresh]);
+  }, [circle.id, circle.teamId, refreshSnapshot]);
 
   const openCompletion = (occurrence: Occurrence) => {
     setSelected(occurrence);
@@ -503,6 +523,7 @@ export function CareDashboard({
     router.refresh();
   }
 
+  if(accessLost)return <main className="setup-shell"><p>Checking your access…</p></main>;
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Primary navigation">
@@ -538,7 +559,7 @@ export function CareDashboard({
           >
             Handoff
           </NavButton>
-          {circle.viewerRole === "owner" ? (
+          {circle.viewerRole === "owner" || isProtectedCircle(circle.id) ? (
             <NavButton
               active={view === "schedules"}
               onClick={() => setView("schedules")}
@@ -554,7 +575,7 @@ export function CareDashboard({
           >
             Caregivers
           </NavButton>
-          {circle.viewerRole === "owner" ? (
+          {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
             <NavButton
               onClick={() => setInviteOpen(true)}
               icon={<UserPlus size={18} />}
@@ -625,7 +646,18 @@ export function CareDashboard({
             <i aria-hidden="true" /> {liveLabel}
           </span>
         </header>
+        <div className="mobile-profile" aria-label="Signed-in caregiver">
+          <span><strong>{viewer.name}</strong><small>{circle.viewerRole === "owner" ? "Circle owner" : "Caregiver"}</small></span>
+          <button type="button" onClick={signOut}><LogOut size={16} aria-hidden="true" />Sign out</button>
+        </div>
 
+        {refreshError ? <div className="demo-banner" role="status"><span>{refreshError}</span><button className="secondary-button" type="button" onClick={()=>void refreshSnapshot()}>Retry refresh</button></div> : null}
+        {circle.id === "demo_mitchell_circle" ? (
+          <aside className="demo-banner" aria-label="Fictional demo notice">
+            <span><strong>Fictional demo · {viewer.name}</strong><br />Medication information is illustrative, not treatment advice or a prescription. Do not enter personal information.</span>
+            <button type="button" className="secondary-button" onClick={signOut}>Sign out to switch caregiver</button><small>{DEMO_RESTRICTION} You can manage newly created care actions; original demo actions are protected.</small>
+          </aside>
+        ) : null}
         {view === "today" ? (
           <TodayView
             circle={circle}
@@ -683,7 +715,7 @@ export function CareDashboard({
           <MessageSquareText size={19} />
           <span>Handoff</span>
         </button>
-        {circle.viewerRole === "owner" ? (
+        {circle.viewerRole === "owner" || isProtectedCircle(circle.id) ? (
           <button
             className={view === "schedules" ? "is-active" : ""}
             type="button"
@@ -703,7 +735,7 @@ export function CareDashboard({
           <UsersRound size={19} />
           <span>People</span>
         </button>
-        {circle.viewerRole === "owner" ? (
+        {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
           <button type="button" onClick={() => setInviteOpen(true)}>
             <UserPlus size={19} />
             <span>Invite</span>
@@ -883,7 +915,7 @@ function CaregiversView({
               : `Manage when you receive alerts for ${circle.recipient}.`}
           </p>
         </div>
-        {circle.viewerRole === "owner" ? (
+        {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
           <div className="caregiver-overview">
             <div>
               <strong>{active.length}</strong>
@@ -934,7 +966,7 @@ function CaregiversView({
         </div>
       </section>
 
-      {circle.viewerRole === "owner" ? (
+      {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
         <section className="caregiver-section escalation-panel">
           <div className="section-heading">
             <div>
@@ -993,11 +1025,11 @@ function CaregiversView({
         </section>
       ) : null}
 
-      {circle.viewerRole === "owner" ? (
+      {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
         <AlertActivityPanel circle={circle} />
       ) : null}
 
-      {circle.viewerRole === "owner" ? (
+      {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
         <section className="caregiver-section">
           <div className="section-heading">
             <div>
@@ -1028,7 +1060,7 @@ function CaregiversView({
         </section>
       ) : null}
 
-      {circle.viewerRole === "owner" ? (
+      {circle.viewerRole === "owner" && !isProtectedCircle(circle.id) ? (
         <section className="caregiver-section">
           <div className="section-heading">
             <div>
@@ -1328,6 +1360,8 @@ function ScheduleView({
           <button
             className="secondary-button"
             type="button"
+            disabled={isProtectedCircle(circle.id)}
+            title={isProtectedCircle(circle.id)?DEMO_RESTRICTION:undefined}
             onClick={() => onEditRecipient("new")}
           >
             <UserPlus size={17} /> Add person
@@ -1370,6 +1404,8 @@ function ScheduleView({
               <button
                 className="secondary-button"
                 type="button"
+                disabled={isProtectedCircle(circle.id)}
+                title={isProtectedCircle(circle.id)?DEMO_RESTRICTION:undefined}
                 onClick={() => onEditRecipient(recipient)}
               >
                 <Pencil size={15} /> Edit
@@ -1442,6 +1478,8 @@ function ScheduleView({
                 <button
                   className="secondary-button"
                   type="button"
+                  disabled={isProtectedCircle(circle.id)&&!isDemoCreatedSchedule(schedule.id)}
+                  title={isProtectedCircle(circle.id)&&!isDemoCreatedSchedule(schedule.id)?DEMO_RESTRICTION:undefined}
                   onClick={() => onEdit(schedule)}
                 >
                   <Pencil size={15} /> Edit
@@ -1449,6 +1487,8 @@ function ScheduleView({
                 <button
                   className="secondary-button secondary-button--danger"
                   type="button"
+                  disabled={isProtectedCircle(circle.id)&&!isDemoCreatedSchedule(schedule.id)}
+                  title={isProtectedCircle(circle.id)&&!isDemoCreatedSchedule(schedule.id)?DEMO_RESTRICTION:undefined}
                   onClick={() => onRemove(schedule)}
                 >
                   <Trash2 size={15} /> Remove

@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { AppwriteException, Permission, Query, Role, type Models } from "node-appwrite";
@@ -77,6 +78,7 @@ export async function updateMyAvailability(input: z.infer<typeof availabilityInp
 
 export async function updateAlertSettings(input: z.infer<typeof alertSettingsInputSchema>) {
   const { circleId, circle, member, databaseId, tables } = await contextForCurrentUser();
+  protectDemoAdministration(circleId);
   if (member.role !== "owner") throw new AlertSettingsForbiddenError("Only the owner can change escalation rules.");
   const primary = await tables.listRows<MemberRow>({
     databaseId,

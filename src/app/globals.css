@@ -3480,7 +3480,8 @@ a {
     bottom: max(12px, env(safe-area-inset-bottom));
     min-height: 66px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     background: rgba(28, 45, 55, 0.96);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -3678,3 +3679,41 @@ a {
 .latest-handoff small { color:#626b66; line-height:1.6; }
 .latest-handoff-status { margin-left:auto; background:#fff; padding:6px 12px; border-radius:20px; text-transform:capitalize; font-size:12px; white-space:nowrap; }
 @media (max-width:600px) { .latest-handoff { padding:18px; gap:12px; flex-wrap:wrap; } .latest-handoff > div:nth-child(2) { flex:1; min-width:180px; } .latest-handoff-status { margin-left:34px; } }
+
+.demo-access { padding:20px; margin-bottom:28px; border:1px solid #d5dfd7; border-radius:16px; background:#f0f3ed; }
+.demo-access .full-button { margin:10px 0; white-space:normal; text-align:left; }
+.demo-access small { display:block; line-height:1.6; color:#52645a; }
+
+.demo-banner { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:20px 24px 0; padding:16px; background:#f0f3ed; border:1px solid #d5dfd7; border-radius:12px; font-size:13px; line-height:1.6; }
+.demo-banner .secondary-button { white-space:normal; }
+
+.mobile-profile { display: none; }
+@media (max-width: 680px) {
+  .mobile-profile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mobile-profile > span { min-width: 0; }
+  .mobile-profile strong { display: block; overflow-wrap: anywhere; font-size: 13px; }
+  .mobile-profile small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .mobile-profile button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--navy);
+    background: var(--paper, #f8f4ea);
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .mobile-nav button { min-width: 0; min-height: 48px; }
+}

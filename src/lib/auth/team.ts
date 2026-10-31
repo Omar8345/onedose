@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { ID } from "node-appwrite";
@@ -9,6 +10,7 @@ export async function ensurePrimaryTeam(secret: string, fallbackName: string) {
   const user = await account.get<OneDosePrefs>();
   if (user.prefs.primaryTeamId) return user;
 
+  protectDemoAdministration(undefined,user.$id);
   const existing = await teams.list({ total: false });
   const team = existing.teams[0] ?? await teams.create({
     teamId: ID.unique(),

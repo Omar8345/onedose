@@ -16,7 +16,7 @@ export async function GET() {
       sessionId: session.$id,
       duration: JWT_DURATION_SECONDS,
     });
-    return Response.json({ jwt: token.jwt, expiresIn: JWT_DURATION_SECONDS });
+    return Response.json({ jwt: token.jwt, expiresIn: JWT_DURATION_SECONDS }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof AppwriteException && error.code === 401) {
       return Response.json({ message: "Authentication required." }, { status: 401 });

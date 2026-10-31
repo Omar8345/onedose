@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { AppwriteException, Permission, Query, Role, type Models } from "node-appwrite";
@@ -39,6 +40,7 @@ export async function revokeCaregiverForOwner({
   membershipId: string;
 }) {
 
+  protectDemoAdministration(circleId,ownerId);
   const { databaseId, tables, teams } = getServerAppwrite();
   const circle = await tables.getRow<CircleRow>({
     databaseId,

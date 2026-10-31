@@ -1,3 +1,4 @@
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     const circleId = await createCareCircle({ input, userId: user.$id, teamId, account });
     return Response.json({ ok: true, circleId }, { status: 201 });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError || error instanceof RangeError) {
       return Response.json({ message: "Check the care circle details and time zone." }, { status: 400 });
     }

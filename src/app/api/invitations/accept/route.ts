@@ -1,3 +1,5 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -20,6 +22,7 @@ const acceptanceSchema = z.object({
 export async function POST(request: Request) {
   try {
     const input = acceptanceSchema.parse(await request.json());
+    protectDemoAdministration(undefined,input.userId,input.teamId);
     const membership = await getPublicTeams().updateMembershipStatus(input);
     await rememberPendingTeam(input.teamId);
 
@@ -35,6 +38,7 @@ export async function POST(request: Request) {
       circleName: membership.teamName,
     });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError) {
       return Response.json({ message: "This invitation link is incomplete." }, { status: 400 });
     }

@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, MailCheck, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { OneDoseLogo } from "@/components/onedose-logo";
 
@@ -12,6 +12,22 @@ export function AuthScreen({
   initialStep?: "email" | "profile";
 }) {
   const router = useRouter();
+  const [demoEnabled, setDemoEnabled] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/auth/demo", { signal: controller.signal }).then((response) => response.json())
+      .then((data) => setDemoEnabled(data.enabled === true)).catch(() => {});
+    return () => controller.abort();
+  }, []);
+  async function signInDemo(account: string) {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/auth/demo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? "Demo access is unavailable.");
+      window.location.reload();
+    } catch (error) { setError(error instanceof Error ? error.message : "Demo access is unavailable."); setBusy(false); }
+  }
   const [step, setStep] = useState<"email" | "code" | "profile">(initialStep);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -114,6 +130,17 @@ export function AuthScreen({
 
       <section className="auth-panel">
         <div className="auth-card">
+          {demoEnabled && step === "email" ? (
+            <section className="demo-access" aria-label="Fictional demo accounts">
+              <span className="eyebrow">Explore the fictional demo</span>
+              <h2>Meet Margaret’s care team</h2>
+              <p>Choose a caregiver. No email or code needed. These shared accounts and all medication information are fictional; do not enter personal information.</p>
+              {([ ["sarah", "Sarah Mitchell", "Circle Owner"], ["james", "James Mitchell", "Caregiver"], ["emily", "Emily Carter", "Caregiver"] ] as const).map(([key, name, role]) => (
+                <button className="secondary-button full-button" key={key} type="button" disabled={busy} onClick={() => signInDemo(key)}>Sign in as {name} — {role}</button>
+              ))}
+              <small>To switch caregivers, sign out and choose another account. Illustrative medication data is not treatment advice or a prescription.</small>
+            </section>
+          ) : null}
           {step === "email" ? (
             <>
               <span className="eyebrow">Passwordless sign in</span>

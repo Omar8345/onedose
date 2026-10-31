@@ -316,3 +316,117 @@ Claim responses refresh current TablesDB claim and occurrence state with active 
 and Team membership checks. Losing caregivers see the current holder and claim time;
 released or expired leases appear available. The handoff view summarizes the latest
 filtered audit event above history using existing data and the selected timezone.
+
+## Judge-ready fictional demo (opt-in; not enabled by default)
+
+The Mitchell dataset uses a dedicated demo project. The named account buttons
+appear when this version is deployed with demo mode enabled. All identities and
+medication information are fictional;
+this is not treatment advice or a prescription. Do not enter personal information.
+
+| Account | Email | Access |
+|---|---|---|
+| Sarah Mitchell | sarah.mitchell@example.com | Daughter; circle owner |
+| James Mitchell | james.mitchell@example.com | Son; caregiver |
+| Emily Carter | emily.carter@example.com | Family friend; caregiver |
+
+Once enabled, choose a named demo button on the sign-in screen. No email message,
+password, or fixed OTP is needed. Sign out before choosing another caregiver; use
+separate browser profiles to compare two caregivers. These are public shared
+accounts, so other judges can change the same records.
+
+Suggested walkthrough:
+
+1. Choose Sarah and open Margaret's fictional care profile and schedules. Compare
+   daily routines, selected weekdays, and a one-time task.
+2. Choose James in another browser. Inspect his current handling claim, including
+   its timestamp. Claim an available due task, then try the same task from a stale
+   Sarah page to see authoritative conflict feedback.
+3. Record an outcome with a short fictional note. Open Handoff to see the latest
+   summary, caregiver attribution, and timestamped history, including a correction.
+4. Choose Emily to see shared history and her different availability. Compare her
+   caregiver role with Sarah's owner role; public demo administration is restricted.
+5. Check updates across both sessions. Appwrite Auth provides real sessions; Teams
+   and row permissions restrict access; TablesDB transactions, deterministic IDs,
+   receipts, and append-only events protect mutations; Realtime propagates changes.
+   No delivered notifications or unsupported release-audit records are fabricated.
+
+### Demo authentication boundaries
+
+Set server-only `ONEDOSE_DEMO_ENABLED=true` and `ONEDOSE_DEMO_ORIGIN` to the exact
+approved origin (`https://onedose.appwrite.network`, or localhost/127.0.0.1 port
+3000 for local verification). Endpoint, project, and database must match the pinned
+OneDose demo target. The server accepts only the three fixed selections, validates
+exact Auth emails, active circle roles, preferences, and confirmed Team memberships,
+and sets the existing HttpOnly session cookie. A bounded in-memory limiter permits
+30 attempts per server process per minute. It needs no external service; budgets
+reset on restart and are separate across instances, so this is best-effort abuse
+protection, not a distributed security boundary. The identity allowlist remains
+the security boundary.
+Origin checks reject cross-site login requests. The code never accepts arbitrary
+emails/user IDs for administrative session creation. Normal email OTP remains available for ordinary users; the three verified demo
+identities must use the named buttons.
+`123456` has no special authentication meaning. Public demo sessions have extra server-enforced administration restrictions,
+including Sarah's owner session. Sarah remains the actual circle owner.
+Keep real accounts and real medical information out of this project.
+
+### Local demo administration
+
+Reset, seed, dataset generation, backups, and approval manifests remain local-only
+and Git-ignored. They are not deployed or required by the application. Only the
+runtime authentication code and public authentication tests belong in the repository.
+A fresh, exact reset manifest must be reviewed and explicitly approved before any
+deletion. Infrastructure and schemas must be preserved. Dates use Asia/Dubai and
+manual refresh; never reset while judges are interacting.
+
+### Connection recovery
+
+Background refreshes request a fresh, authorized snapshot. A timeout or service
+failure keeps the last confirmed dashboard with a Retry refresh message and pauses
+the refresh timer until a successful retry. Requests are deduplicated and have a
+15-second client timeout. Confirmed session expiry or revoked access removes the
+private view and rechecks access; network errors never clear the session cookie.
+
+### Public demo safeguards
+
+All three demo caregivers may create care actions and edit/archive actions created
+through the public demo. These receive server-generated `public_demo_` IDs; clients
+cannot choose IDs. Original seeded actions and their occurrences cannot be changed
+through schedule management. Normal outcome recording and append-only corrections
+remain interactive. Other circles retain owner-only schedule management.
+
+Demo circle invitations, membership changes, recipient changes, escalation settings,
+and profile changes are blocked by server-side guards. Original-action editing and
+administration controls are disabled/hidden with a public-demo explanation.
+
+### Accepted shared-account security limitations
+
+This hackathon deployment intentionally retains the tested Appwrite authentication
+and Realtime architecture. The three fictional accounts are public and shared;
+all visitors using one account act as the same Appwrite user. Do not use this
+configuration for real care, personal information, or private production accounts.
+
+Application guards do not override Appwrite's own Team/account permissions. Sarah
+retains the Appwrite Team owner role; members can also leave their own membership.
+A visitor using Appwrite directly may bypass OneDose's administrative restrictions.
+Read-only database row permissions still prevent direct row writes, but do not
+remove these separate Team/account capabilities.
+
+The Realtime endpoint returns a reusable, session-backed Appwrite JWT to the
+browser. It carries the user's Appwrite permissions, not a Realtime-only scope.
+Responses use `Cache-Control: private, no-store`; that prevents caching, not reuse
+by the authenticated recipient. JWT lifetime and renewal behavior are unchanged.
+
+The HttpOnly `onedose_session` cookie contains the underlying Appwrite session
+secret. HttpOnly prevents page JavaScript from reading it, not a person controlling
+the browser from inspecting and reusing it. Removing JWT responses, shortening
+token lifetime, hiding controls, or changing Team roles alone would not eliminate
+all equivalent-credential or self-removal risks. Normal logout revokes the current
+Appwrite session and clears its cookie; the current implementation suppresses
+revocation errors, so an outage can leave revocation unconfirmed.
+
+These residual risks are explicitly accepted for the dedicated fictional hackathon
+demo. No Realtime bridge, opaque application-session system, or Team-role changes
+are part of this release. Strict isolation would require a separately reviewed
+credential/session and Realtime design; a bridge alone would not solve exposure
+of the underlying session cookie. Existing server guards remain in force.

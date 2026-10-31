@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto";
+import { isProtectedCircle, isDemoCreatedSchedule } from "@/lib/demo/protection";
+import { PublicDemoRestriction, requireDemoScheduleIdentity } from "@/lib/demo/guard";
 import "server-only";
 
 import { AppwriteException, ID, Permission, Query, Role, type Models } from "node-appwrite";
@@ -64,7 +67,8 @@ async function ownerContext(circleId: string, userId: string) {
       rowId: stableRowId("mem", `${circleId}:${userId}`),
     }),
   ]);
-  if (member.status !== "active" || member.role !== "owner") throw new ScheduleForbiddenError();
+  if(isProtectedCircle(circleId))await requireDemoScheduleIdentity(userId);
+  if (member.circleId!==circleId || member.userId!==userId || member.status !== "active" || (member.role !== "owner" && !(isProtectedCircle(circleId) && member.role==="caregiver"))) throw new ScheduleForbiddenError();
   return { databaseId, tables, circle };
 }
 
@@ -96,7 +100,7 @@ export async function createSchedules(circleId: string, userId: string, input: S
       schedules.push(await tables.createRow<ScheduleRow>({
         databaseId,
         tableId: TABLES.schedules,
-        rowId: ID.unique(),
+        rowId: isProtectedCircle(circleId)?`public_demo_${randomBytes(12).toString("hex")}`:ID.unique(),
         data: {
           circleId,
           recipientId: recipient.$id,
@@ -141,6 +145,7 @@ export async function updateSchedule(
     tableId: TABLES.schedules,
     rowId: scheduleId,
   });
+  if(isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId))throw new PublicDemoRestriction();
   if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
   if (schedule.archivedAt) throw new ScheduleNotFoundError();
   const rrule = buildScheduleRrule(input);
@@ -209,6 +214,7 @@ export async function archiveSchedule(circleId: string, scheduleId: string, user
     tableId: TABLES.schedules,
     rowId: scheduleId,
   });
+  if(isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId))throw new PublicDemoRestriction();
   if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
   if (schedule.archivedAt) return schedule;
 

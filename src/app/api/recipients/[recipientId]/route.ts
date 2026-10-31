@@ -1,3 +1,4 @@
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/recipi
     await updateRecipient(circleId, recipientId, user.$id, input);
     return Response.json({ ok: true });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError || error instanceof RangeError) {
       return Response.json({ message: "Check the person’s name and time zone." }, { status: 400 });
     }
@@ -35,6 +37,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/reci
     await archiveRecipient(circleId, recipientId, user.$id);
     return Response.json({ ok: true });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof AppwriteException && error.code === 401) {
       return Response.json({ message: "Sign in again to manage care profiles." }, { status: 401 });
     }

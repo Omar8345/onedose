@@ -1,3 +1,5 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException, Query } from "node-appwrite";
 import { z } from "zod";
 
@@ -12,6 +14,7 @@ export async function POST(request: Request) {
   try {
     const { email } = inviteSchema.parse(await request.json());
     const { user, teams } = await requireCurrentUser();
+    protectDemoAdministration(user.prefs.circleId,user.$id,user.prefs.primaryTeamId);
     if (email.trim().toLowerCase() === user.email.trim().toLowerCase()) {
       return Response.json({ message: "You cannot invite yourself to this care circle." }, { status: 400 });
     }
@@ -40,6 +43,7 @@ export async function POST(request: Request) {
         total: false,
       });
     } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
       if (error instanceof AppwriteException && error.code === 401) {
         console.error("Unable to inspect invitation memberships with the server API key", {
           code: error.code,
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, membershipId: membership.$id }, { status: 201 });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError) {
       return Response.json({ message: "Enter a valid caregiver email address." }, { status: 400 });
     }

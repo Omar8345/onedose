@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { AppwriteException, ID, Permission, Query, Role } from "node-appwrite";
@@ -59,6 +60,7 @@ export async function createCareCircle({
   teamId: string;
   account: { updatePrefs: <Preferences extends OneDosePrefs>(params: { prefs: Preferences }) => Promise<unknown> };
 }) {
+  protectDemoAdministration(undefined,userId,teamId);
   // Intl throws for unknown zones before any rows are staged.
   new Intl.DateTimeFormat("en", { timeZone: input.timezone }).format();
 

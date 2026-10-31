@@ -1,3 +1,4 @@
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -21,6 +22,7 @@ export async function DELETE(
     await archiveSchedule(circleId, scheduleId, user.$id);
     return Response.json({ ok: true });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof ScheduleForbiddenError) {
       return Response.json({ message: error.message }, { status: 403 });
     }
@@ -47,6 +49,7 @@ export async function PATCH(
     await updateSchedule(circleId, scheduleId, user.$id, input);
     return Response.json({ ok: true });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError) {
       return Response.json({ message: "Check the action name, time, and schedule." }, { status: 400 });
     }

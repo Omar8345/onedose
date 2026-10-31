@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { AppwriteException, ID, Permission, Query, Role, type Models } from "node-appwrite";
@@ -33,6 +34,7 @@ export class RecipientInUseError extends Error {
 }
 
 async function ownerContext(circleId: string, userId: string) {
+  protectDemoAdministration(circleId,userId);
   const { databaseId, tables } = getServerAppwrite();
   const [circle, member] = await Promise.all([
     tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId }),

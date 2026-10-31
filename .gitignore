@@ -35,3 +35,20 @@ AGENTS.md
 # operating system
 .DS_Store
 *.pem
+# Private demo inventories and backups
+/.onedose-demo/
+
+# Local-only demo administration and generated evidence
+/scripts/demo-admin.ts
+/scripts/demo-reset.mts
+/scripts/demo-seed.mts
+/scripts/local-demo-seed-plan.ts
+/scripts/demo-dataset-test.mts
+/artifacts/
+
+/scripts/demo-diagnostic.mts
+/scripts/demo-recovery-verify.mts
+
+/scripts/demo-security-live.mts
+
+/scripts/demo-interactive-live.mts

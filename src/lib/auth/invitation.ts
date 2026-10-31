@@ -1,3 +1,4 @@
+import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { cookies } from "next/headers";
@@ -14,6 +15,7 @@ const PENDING_TEAM_MAX_AGE_SECONDS = 30 * 60;
 type CircleRow = Models.Row & { teamId: string };
 
 export async function rememberPendingTeam(teamId: string) {
+  protectDemoAdministration(undefined,undefined,teamId);
   (await cookies()).set(PENDING_TEAM_COOKIE, teamId, {
     httpOnly: true,
     sameSite: "lax",
@@ -40,6 +42,7 @@ export async function getPendingTeam() {
 export async function activateTeamForSession(secret: string, teamId: string) {
   const { account, teams } = getSessionServices(secret);
   const user = await account.get<OneDosePrefs>();
+  protectDemoAdministration(undefined,user.$id,teamId);
   const teamList = await teams.list({ total: false });
   if (!teamList.teams.some((team) => team.$id === teamId)) return false;
 

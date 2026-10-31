@@ -1,3 +1,4 @@
+import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
       scheduleIds: schedules.map((schedule) => schedule.$id),
     }, { status: 201 });
   } catch (error) {
+    if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError) {
       return Response.json({ message: "Check the action name, time, and schedule." }, { status: 400 });
     }
