@@ -47,12 +47,13 @@ export class CompletionClaimedByAnotherError extends Error {
 }
 
 function fingerprint(input: CompletionInput) {
+  // occurredAt is assigned by the HTTP server on every attempt, not supplied
+  // by the caller. It must not change the identity of an otherwise identical retry.
   return stableHash(JSON.stringify({
     occurrenceId: input.occurrenceId,
     actorId: input.actorId,
     outcome: input.outcome,
     note: input.note ?? "",
-    occurredAt: input.occurredAt,
     correctsEventId: input.correctsEventId ?? "",
   }));
 }

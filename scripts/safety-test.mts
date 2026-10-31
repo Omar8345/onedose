@@ -18,11 +18,13 @@ const [
   import("../src/lib/domain/schema"),
 ]);
 
-const { databaseId, tables } = getServerAppwrite();
+const { databaseId, tables, users } = getServerAppwrite();
 const runId = Date.now().toString(36);
 const occurrenceId = `safe_occ_${runId}`;
 const dueAt = new Date().toISOString();
 let createdOccurrence = false;
+let sessionId: string | undefined;
+let createdUser = false;
 
 async function relatedRows(tableId: string) {
   return tables.listRows({
@@ -76,7 +78,36 @@ try {
   };
   const claim = await claimOccurrence(occurrenceId, input.actorId);
   assert.equal(claim.kind, "claimed", "the authorized caregiver must claim the action first");
-  const accepted = await completeOccurrence(input);
+  try {
+    await users.get({ userId: input.actorId });
+  } catch (error) {
+    if ((error as { code?: number }).code !== 404) throw error;
+    await users.create({ userId: input.actorId, email: `safety-${runId}@example.invalid`, name: "Synthetic safety caregiver" });
+    createdUser = true;
+  }
+  const session = await users.createSession({ userId: input.actorId });
+  sessionId = session.$id;
+  const post = async (body: Record<string, unknown>) => {
+    const response = await fetch(`${process.env.TEST_BASE_URL ?? "http://127.0.0.1:3000"}/api/occurrences/${occurrenceId}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: `onedose_session=${session.secret}` },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() };
+  };
+  const body = { idempotencyKey: input.idempotencyKey, outcome: input.outcome, note: input.note };
+  const first = await post(body);
+  assert.equal(first.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const retry = await post(body);
+  assert.equal(retry.status, 200, "identical HTTP retry must replay despite a new server timestamp");
+  assert.equal(retry.body.kind, "replayed");
+  assert.deepEqual(retry.body.occurrence, first.body.occurrence);
+  for (const changed of [{ note: "Changed note" }, { outcome: "skipped" }, { correctsEventId: "different-event" }]) {
+    assert.equal((await post({ ...body, ...changed })).status, 409);
+  }
+  console.log("HTTP retry regression passed: identical retry replays; changed note, outcome, correction conflict");
+  const accepted = { kind: "accepted" as const, eventId: first.body.occurrence.activeEventId };
   const replayed = await completeOccurrence(input);
   await assert.rejects(
     completeOccurrence({ ...input, note: "Changed after retry" }),
@@ -141,6 +172,8 @@ try {
     finalVersion: occurrence.version,
   });
 } finally {
+  if (sessionId) await users.deleteSession({ userId: "demo_omar", sessionId });
+  if (createdUser) await users.delete({ userId: "demo_omar" });
   if (createdOccurrence) {
     const [events, commands] = await Promise.all([
       relatedRows(TABLES.events),
