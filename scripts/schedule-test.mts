@@ -9,22 +9,20 @@ loadEnvConfig(process.cwd());
 const [
   { archiveSchedule, createSchedule, updateSchedule },
   { ensureTodayOccurrences },
-  { getServerAppwrite },
   { TABLES },
   { WEEKDAYS, weekdayCode },
   { localDateKey },
 ] = await Promise.all([
   import("../src/lib/data/manage-schedule"),
   import("../src/lib/data/ensure-occurrences"),
-  import("../src/lib/appwrite/server"),
   import("../src/lib/domain/schema"),
   import("../src/lib/domain/recurrence"),
   import("../src/lib/domain/time"),
 ]);
 
-const CIRCLE_ID = "demo_circle_nora";
-const OWNER_ID = "demo_omar";
-const { databaseId, tables } = getServerAppwrite();
+const { integrationFixture } = await import("./integration-fixture");
+const fixture = await integrationFixture("schedule");
+const { circleId: CIRCLE_ID, ownerId: OWNER_ID, caregiverId: CAREGIVER_ID, databaseId, tables } = fixture;
 let scheduleId: string | null = null;
 
 async function scheduleOccurrences() {
@@ -126,7 +124,7 @@ try {
   assert.equal((await scheduleOccurrences()).length, 1, "resume must reuse today's occurrence");
 
   await assert.rejects(
-    archiveSchedule(CIRCLE_ID, scheduleId, "demo_maya"),
+    archiveSchedule(CIRCLE_ID, scheduleId, CAREGIVER_ID),
     (error: unknown) => error instanceof Error && error.name === "ScheduleForbiddenError",
     "a caregiver must not be able to remove a care action",
   );
@@ -150,10 +148,5 @@ try {
     historyPreservedAfterRemoval: true,
   });
 } finally {
-  if (scheduleId) {
-    for (const occurrence of await scheduleOccurrences()) {
-      await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrence.$id });
-    }
-    await tables.deleteRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId });
-  }
+  await fixture.cleanup();
 }

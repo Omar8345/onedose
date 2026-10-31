@@ -8,18 +8,16 @@ loadEnvConfig(process.cwd());
 const [
   { archiveRecipient, createRecipient, updateRecipient },
   { archiveSchedule, createSchedules },
-  { getServerAppwrite },
   { TABLES },
 ] = await Promise.all([
   import("../src/lib/data/manage-recipient"),
   import("../src/lib/data/manage-schedule"),
-  import("../src/lib/appwrite/server"),
   import("../src/lib/domain/schema"),
 ]);
 
-const CIRCLE_ID = "demo_circle_nora";
-const OWNER_ID = "demo_omar";
-const { databaseId, tables } = getServerAppwrite();
+const { integrationFixture } = await import("./integration-fixture");
+const fixture = await integrationFixture("recipient");
+const { circleId: CIRCLE_ID, ownerId: OWNER_ID, caregiverId: CAREGIVER_ID, databaseId, tables } = fixture;
 const recipientIds: string[] = [];
 const scheduleIds: string[] = [];
 
@@ -43,7 +41,7 @@ try {
   assert.equal(updated.timezone, "Asia/Dubai");
 
   await assert.rejects(
-    createRecipient(CIRCLE_ID, "demo_maya", { displayName: "Denied", timezone: "UTC" }),
+    createRecipient(CIRCLE_ID, CAREGIVER_ID, { displayName: "Denied", timezone: "UTC" }),
     (error: unknown) => error instanceof Error && error.name === "RecipientForbiddenError",
   );
 
@@ -81,10 +79,5 @@ try {
   console.log("OneDose care recipient proof passed");
   console.table({ ownerOnly: true, profileUpdate: true, bulkScheduleAssignment: true, independentSchedules: true, inUseProtection: true, softArchive: true });
 } finally {
-  for (const scheduleId of scheduleIds) {
-    await tables.deleteRow({ databaseId, tableId: TABLES.schedules, rowId: scheduleId }).catch(() => undefined);
-  }
-  for (const recipientId of recipientIds) {
-    await tables.deleteRow({ databaseId, tableId: TABLES.recipients, rowId: recipientId }).catch(() => undefined);
-  }
+  await fixture.cleanup();
 }

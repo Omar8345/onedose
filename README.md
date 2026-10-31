@@ -6,13 +6,9 @@
 
 **Know what's due. Know who's handling it. Know what happened.**
 
-[![Appwrite Databases Hackathon](https://img.shields.io/badge/Appwrite-Databases_Hackathon-f02e65?style=flat-square)](https://hackathon.appwrite.io/)
-![Next.js](https://img.shields.io/badge/Next.js-16-233345?style=flat-square)
-![Appwrite](https://img.shields.io/badge/Appwrite-TablesDB_%2B_Realtime-233345?style=flat-square)
-![TypeScript](https://img.shields.io/badge/TypeScript-Enabled-233345?style=flat-square)
-[![Repository Hits](https://hits.dwyl.com/Omar8345/onedose.svg?style=flat-square)](https://hits.dwyl.com/Omar8345/onedose)
+[![Appwrite Databases Hackathon](https://img.shields.io/badge/Appwrite-Databases_Hackathon-f02e65?style=flat-square)](https://hackathon.appwrite.io/) ![Next.js](https://img.shields.io/badge/Next.js-16-233345?style=flat-square) ![Appwrite](https://img.shields.io/badge/Appwrite-TablesDB_%2B_Realtime-233345?style=flat-square) ![TypeScript](https://img.shields.io/badge/TypeScript-Enabled-233345?style=flat-square) [![Repository Hits](https://hits.dwyl.com/Omar8345/onedose.svg?style=flat-square)](https://hits.dwyl.com/Omar8345/onedose)
 
-**[🚀 Try OneDose](https://onedose.appwrite.network) · [▶ Watch the 1:51 Demo](https://cap.so/s/41tw3xw36n2g1yj)**
+**[🚀 Try OneDose](https://onedose.appwrite.network) · [▶ Watch the 1:51 Demo](https://cap.so/s/41tw3xw36n2g1yj) · [GitHub](https://github.com/Omar8345/onedose)**
 
 **Built for the [Appwrite Databases Hackathon 2026](https://hackathon.appwrite.io/)**
 
@@ -39,6 +35,30 @@ That's why I built **OneDose**.
 OneDose gives caregivers a shared place to coordinate schedules, claim responsibility, record outcomes, and see a clear, timestamped history of care.
 
 Instead of wondering whether someone already handled a task, everyone can see **one authoritative record**.
+
+## Try the interactive demo
+
+The hosted demo features **Mitchell Family Care**, a fictional care circle coordinating medication routines for Margaret Mitchell.
+
+No registration, password, or email OTP is needed for the three public demo accounts.
+
+| Demo account       | Role                      | Explore                                        |
+| ------------------ | ------------------------- | ---------------------------------------------- |
+| **Sarah Mitchell** | Circle owner · Daughter   | Shared schedules and care coordination         |
+| **James Mitchell** | Caregiver · Son           | Claims, outcomes, and handoffs                 |
+| **Emily Carter**   | Caregiver · Family friend | Availability, shared history, and live updates |
+
+**[🚀 Open the OneDose Demo](https://onedose.appwrite.network)**
+
+Choose one of the **Sign in as...** buttons on the login screen.
+
+### Suggested judge walkthrough
+
+1. Sign in as **Sarah** and explore Margaret's schedules and today's actions.
+2. Open another browser profile as **James**. Claim an available action, then observe the claim from Sarah's session.
+3. Record an outcome and open **Handoff** to see the updated history.
+4. Sign in as **Emily** to explore the same shared care record from another caregiver's perspective.
+5. Try creating a new demo schedule, recording a correction, or comparing updates across sessions.
 
 ## Meet OneDose
 
@@ -69,106 +89,36 @@ Every step is backed by real application state, not just a message saying someth
 
 ### 01 — Know what needs attention
 
-The **Today** dashboard brings upcoming, due, overdue, and completed actions together.
+The **Today** dashboard brings upcoming, due, overdue, and completed actions together. Filter by recipient and see the care circle’s local time without digging through messages.
 
-Caregivers can focus on a specific recipient and understand what's next without digging through messages.
-
-Daily routines, selected weekdays, and one-time schedules make it possible to coordinate different kinds of care.
-
-**One shared schedule. No guessing what's next.**
+![Populated Mitchell Family Care Today dashboard, with overdue and completed actions](assets/onedose-today.jpg)
 
 ### 02 — Claim responsibility without confusion
 
-When an action becomes due, a caregiver can claim it.
+When an action becomes due, a caregiver can claim it. If requests compete, the database determines one authoritative winner. Other authorized caregivers see **who holds the claim and when it was created**, rather than a generic error. Claims can be released or taken over after expiration.
 
-Everyone else can see that someone is already handling it.
+<p align="center">
+  <img src="assets/onedose-claim.jpg" width="390" alt="James sees Sarah Mitchell handling the Vitamin B12 care routine, including her claim time and expiration countdown">
+</p>
+<p align="center">
+  <sub>When a claim conflicts, caregivers see who is responsible and when the claim was made.</sub>
+</p>
 
-But what happens if two caregivers try to claim the same action at once?
+### 03 — Record what happened and hand over clearly
 
-OneDose lets the database determine one authoritative winner.
+Record **completed, skipped, refused, or unavailable** outcomes with notes. Corrections append a new event instead of silently changing history.
 
-The other caregiver receives clear feedback showing **who holds the claim and when it was created**, rather than a generic error.
+Appwrite Realtime keeps connected caregivers updated. The **latest-handoff summary** and timestamped history show what happened, who recorded it, and the relevant status.
 
-Claims can also be released or taken over after expiration.
+![Mitchell Family Care Handoff view with latest summary and timestamped caregiver activity](assets/onedose-handoff.jpg)
 
-**Responsibility stays visible, even when requests compete.**
+### 04 — Recover when things go wrong
 
-### 03 — Record what actually happened
-
-Care doesn't always go exactly as scheduled.
-
-OneDose supports four outcomes:
-
-| Outcome         | Meaning                                                             |
-| --------------- | ------------------------------------------------------------------- |
-| **Completed**   | The action was carried out.                                         |
-| **Skipped**     | The action was intentionally skipped.                               |
-| **Refused**     | The care recipient refused the action.                              |
-| **Unavailable** | The action couldn't be completed because something was unavailable. |
-
-Caregivers can include notes to explain the situation.
-
-If a recorded outcome needs correcting, OneDose preserves the earlier event and adds a correction rather than silently changing history.
-
-### 04 — Keep everyone in sync
-
-Once a caregiver records an outcome, other connected caregivers can see the updated state through **Appwrite Realtime**.
-
-The Handoff view shows a timestamped activity history, including who recorded each action.
-
-A compact latest-handoff summary makes it easier for someone joining later to catch up quickly.
-
-**Nobody should have to ask the family chat what happened three hours ago.**
-
-### 05 — Recover when things go wrong
-
-Real applications need to handle more than the happy path.
-
-What if a completion succeeds, but the network response disappears?
-
-OneDose can recognize an identical retry and return the recorded result without creating a second completion.
-
-What if Appwrite is temporarily unreachable during a dashboard refresh?
-
-The app keeps the last confirmed view, pauses automatic refresh, and shows a **Retry refresh** option rather than unnecessarily wiping the dashboard or signing the user out.
-
-Confirmed session expiration and revoked access are still handled separately.
-
-## Try the interactive demo
-
-The hosted demo features **Mitchell Family Care**, a fictional care circle coordinating medication routines for Margaret Mitchell.
-
-No registration, password, or email OTP is needed for the three public demo accounts.
-
-| Demo account       | Role                      | Explore                                        |
-| ------------------ | ------------------------- | ---------------------------------------------- |
-| **Sarah Mitchell** | Circle owner · Daughter   | Shared schedules and care coordination         |
-| **James Mitchell** | Caregiver · Son           | Claims, outcomes, and handoffs                 |
-| **Emily Carter**   | Caregiver · Family friend | Availability, shared history, and live updates |
-
-**[🚀 Open the OneDose Demo](https://onedose.appwrite.network)**
-
-Choose one of the **Sign in as...** buttons on the login screen.
-
-### Suggested judge walkthrough
-
-1. Sign in as **Sarah** and explore Margaret's schedules and today's actions.
-2. Open another browser profile as **James**. Claim an available action, then observe the claim from Sarah's session.
-3. Record an outcome and open **Handoff** to see the updated history.
-4. Sign in as **Emily** to explore the same shared care record from another caregiver's perspective.
-5. Try creating a new demo schedule, recording a correction, or comparing updates across sessions.
-
----
+An identical retry returns the recorded result without creating another completion. If Appwrite is temporarily unreachable during refresh, OneDose keeps the last confirmed view, pauses automatic refresh, and offers **Retry refresh**. Confirmed session expiration and revoked access are handled separately.
 
 ## One winner. Even with 25 competing requests.
 
-What happens when multiple caregivers attempt the same operation simultaneously?
-
-Without coordination, conflicting actions could create uncertainty about what actually happened.
-
 OneDose uses **Appwrite TablesDB transactions, deterministic record IDs, optimistic consistency checks, and idempotency receipts** to protect the authoritative record.
-
-### Verified against live Appwrite
 
 The integration tests exercise actual Appwrite database operations.
 
@@ -184,7 +134,9 @@ The integration tests exercise actual Appwrite database operations.
 | Changed retry payload            |        Conflict rejected |
 | Revoked caregiver replay attempt |                 HTTP 403 |
 
-**25 caregivers can compete. Only one completion becomes authoritative.**
+**25 competing requests. One authoritative completion. Zero duplicates.**
+
+**Realtime independently verified:** Two authenticated browser sessions received claim, release, takeover, completion, and correction updates through Appwrite Realtime without page reloads. Observed update delays were **4.6–7.8 seconds** during testing, not a guaranteed synchronization time.
 
 ### How OneDose keeps the record trustworthy
 
@@ -195,11 +147,9 @@ The integration tests exercise actual Appwrite database operations.
 - **Append-only history:** Corrections preserve what was recorded before.
 - **Authorization-aware retries:** Revoked caregivers cannot use old receipt keys to recover private data.
 
-A concurrency-safe application shouldn't simply reject duplicates. It should also make the outcome understandable to the people using it.
-
 ## Powered by Appwrite
 
-Appwrite is central to how OneDose works — from coordinating caregivers to preserving reliable shared state.
+The application uses **Next.js 16, React, TypeScript, and CSS**, with server routes and domain services coordinating Appwrite operations.
 
 | Appwrite service | Role                                                                                            |
 | ---------------- | ----------------------------------------------------------------------------------------------- |
@@ -226,66 +176,33 @@ flowchart TB
     FN -.-> MSG["Messaging · Optional Reminders"]
 ```
 
-TablesDB doesn't merely store completed forms. Its transaction and uniqueness behavior help OneDose maintain a consistent care record under concurrent requests.
-
-Realtime then helps connected caregivers stay aligned with that authoritative state.
+TablesDB transactions and deterministic IDs protect related writes; Realtime helps connected caregivers converge on that authoritative state.
 
 ## Run locally
 
-### Requirements
-
-- Node.js 20 or newer
-- An Appwrite project with TablesDB
-- An appropriately scoped Appwrite server API key
-
-**1. Clone and install**
+Requires **Node.js 20+**, an Appwrite project with TablesDB, and an appropriately scoped server API key.
 
 ```bash
 git clone https://github.com/Omar8345/onedose.git
 cd onedose
 npm install
-```
-
-**2. Configure Appwrite**
-
-```bash
 cp .env.example .env.local
 ```
 
-Add your own Appwrite endpoint, project, database, and server API key using the environment example.
-
-Keep `.env.local` private. Never commit API keys.
-
-**3. Provision the database**
+Configure your own endpoint, project, database, and server API key in `.env.local`; keep it private. Provision your own development project, then start the app:
 
 ```bash
 npm run db:provision
-```
-
-This provisions the required application tables and validates existing structures.
-
-Optional isolated development seed:
-
-```bash
-npm run db:seed
-```
-
-**4. Launch OneDose**
-
-```bash
 npm run dev
 ```
 
-Open **http://localhost:3000**.
-
-Ordinary installations use the existing email OTP flow. The public three-account demo is enabled separately for the configured fictional demo environment.
+Open **http://localhost:3000**. Ordinary installations use email OTP; the three-account demo is enabled separately for the configured fictional environment. The hosted demo is already provisioned and needs no setup.
 
 ## Tests and verification
 
-The repository includes integration tests for scheduling, care-circle permissions, retries, and concurrency.
-
 ```bash
 npm run lint
+npx tsc --noEmit
 npm run build
 
 npm run test:schedules
@@ -294,59 +211,52 @@ npm run test:safety
 npm run test:caregivers
 npm run test:recipients
 npm run test:race
+npm run test:demo
+npm run test:snapshot
+npm run test:demo-protection
 ```
 
-| Test              | What it covers                                                          |
-| ----------------- | ----------------------------------------------------------------------- |
-| `test:schedules`  | Recurrence, schedule changes, and history preservation                  |
-| `test:reminders`  | Caregiver selection, availability, escalation, and duplicate prevention |
-| `test:safety`     | HTTP retries, authorization, idempotency, and corrections               |
-| `test:caregivers` | Invitations, revocation, and role protection                            |
-| `test:recipients` | Recipient permissions and isolation                                     |
-| `test:race`       | Concurrent claims, completions, and consistency                         |
+| Test                   | What it covers                                                          |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `test:schedules`       | Recurrence, schedule changes, and history preservation                  |
+| `test:reminders`       | Caregiver selection, availability, escalation, and duplicate prevention |
+| `test:safety`          | HTTP retries, authorization, idempotency, and corrections               |
+| `test:caregivers`      | Invitations, revocation, and role protection                            |
+| `test:recipients`      | Recipient permissions and isolation                                     |
+| `test:race`            | Concurrent claims, completions, and consistency                         |
+| `test:demo`            | Demo login allowlist, origin checks, roles, and rate window             |
+| `test:snapshot`        | Transport failures, access denial, and refresh recovery                 |
+| `test:demo-protection` | Scoped OTP restrictions and schedule-management policy                  |
 
-Integration tests require configured Appwrite resources and appropriate API-key permissions.
+Integration tests require configured Appwrite resources and appropriate API-key permissions. `test:safety` also needs a running Next.js server at `TEST_BASE_URL` (default `http://127.0.0.1:3000`). Run the suites serially for clear service-dependent evidence.
 
-`test:safety` also requires a running Next.js server at `TEST_BASE_URL`, defaulting to `http://127.0.0.1:3000`.
+On **31 October 2026, all 9 integration test suites passed** in a complete serial run against the configured Appwrite environment.
 
-## Under the hood
+Schedule and recipient suites create uniquely named synthetic users, a Team, circle, and recipients, then clean up their own resources. They do not require the legacy Nora seed or modify Mitchell Family Care.
 
-| Layer                  | Technology                                |
-| ---------------------- | ----------------------------------------- |
-| Frontend               | Next.js 16, React, TypeScript, CSS        |
-| Backend                | Next.js server routes and domain services |
-| Database               | Appwrite TablesDB                         |
-| Authentication         | Appwrite Auth + Teams                     |
-| Live synchronization   | Appwrite Realtime                         |
-| Background processing  | Appwrite Functions                        |
-| Optional notifications | Appwrite Messaging                        |
-| Deployment             | Appwrite Sites                            |
-| Testing                | Node.js integration scripts               |
+The race suite verifies database contention and snapshot convergence separately from browser Realtime behavior.
 
-### 💡 Fun fact: The demo has three real caregivers
+A two-browser Realtime verification also passed: WebSocket events preceded snapshot requests and visible updates for claims, releases, takeovers, completions, and corrections, without page reloads. Observed update delays ranged from **4.6 to 7.8 seconds**.
 
-Well, fictional caregivers — but real Appwrite accounts.
+The reproducible steps are documented in the [two-session Realtime verification guide](docs/realtime-verification.md).
 
-Sarah, James, and Emily belong to the same seeded care circle with different roles. Their actions are stored in actual TablesDB records and synchronized between authenticated browser sessions.
+## Hosted demo limitations
 
-The demo also contains a realistic history of completed, skipped, refused, unavailable, and corrected actions.
+The three fictional caregivers are **real, shared Appwrite accounts**, with actual TablesDB records and live synchronization. Do not enter personal information. Application guards protect seeded schedules and circle administration; shared-account access is not complete isolation. Direct Appwrite Team/account permissions remain an accepted hackathon limitation.
 
-It's designed to let judges experience the coordination problem, not just watch a video about it.
+All three caregivers can create demo schedules and manage those new schedules; original seeded schedules remain protected through the application. Sarah remains the actual circle owner.
 
-## A note on the hosted demo
+**Automated reminder and overdue escalation emails are disabled in the hosted version** because of deployment-plan and delivery configuration limitations. Worker implementations and tests are included; the demo makes no artificial delivered-notification claims.
 
-OneDose is a hackathon project demonstrating collaborative care coordination, not a certified medical application.
+OneDose demonstrates care coordination. It does not diagnose, prescribe, or recommend treatment, and is not a certified medical application. **Do not rely on it for emergency alerts, medical monitoring, or time-critical medication notifications.**
 
-**Automated reminder and overdue escalation emails are disabled in the hosted version** due to deployment-plan and delivery configuration limitations. The worker implementation and related tests are included in the repository.
-
-**OneDose must not be relied upon for emergency alerts, medical monitoring, or time-critical medication notifications.**
-
-For deeper implementation details:
+### Technical documentation
 
 - [Product specification](docs/product.md)
 - [TablesDB data model](docs/data-model.md)
 - [Architecture decisions](docs/decisions.md)
 - [Reminder worker](functions/reminders/README.md)
+- [Two-session Realtime verification](docs/realtime-verification.md)
 
 ---
 
@@ -354,9 +264,7 @@ For deeper implementation details:
 
 ### Care is shared. Clarity should be too.
 
-**One shared schedule. One responsible caregiver. One clear record.**
-
-Built with **Appwrite** for the **Appwrite Databases Hackathon 2026**.
+**Shared care. One clear record.**
 
 [🚀 Live App](https://onedose.appwrite.network) · [🎬 Product Demo](https://cap.so/s/41tw3xw36n2g1yj) · [GitHub Repository](https://github.com/Omar8345/onedose)
 
