@@ -158,10 +158,6 @@ Choose one of the **Sign in as...** buttons on the login screen.
 4. Sign in as **Emily** to explore the same shared care record from another caregiver's perspective.
 5. Try creating a new demo schedule, recording a correction, or comparing updates across sessions.
 
-The three demo accounts use genuine Appwrite Auth sessions and Team memberships.
-
-**Demo note:** All people, medication details, and care records are fictional. Accounts are shared between visitors, so demo data may change. Original seeded schedules and circle administration are protected through the application, while new demo schedules and regular care interactions remain available.
-
 ---
 
 ## One winner. Even with 25 competing requests.
