@@ -3,6 +3,7 @@ import "server-only";
 import { AppwriteException, Permission, Query, Role } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
+import { fenceOccurrence, isOccurrenceConflict, readFencedOccurrence } from "@/lib/data/occurrence-fence";
 import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
 import { stableRowId } from "@/lib/domain/ids";
 import { TABLES, type MemberRow, type OccurrenceClaimRow, type OccurrenceRow } from "@/lib/domain/schema";
@@ -24,10 +25,6 @@ export class ClaimForbiddenError extends Error {
 
 function isMissing(error: unknown) {
   return error instanceof AppwriteException && error.code === 404;
-}
-
-function isConflict(error: unknown) {
-  return error instanceof AppwriteException && error.code === 409;
 }
 
 function hasActiveClaim(claim: OccurrenceClaimRow, now = Date.now()) {
@@ -83,12 +80,7 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
   const { databaseId, tables } = getServerAppwrite();
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
   try {
-    const occurrence = await tables.getRow<OccurrenceRow>({
-      databaseId,
-      tableId: TABLES.occurrences,
-      rowId: occurrenceId,
-      transactionId: transaction.$id,
-    });
+    const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, occurrenceId, transaction.$id);
     const member = await activeMember(occurrence, actorId, transaction.$id);
     if (occurrence.status !== "due") {
       await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
@@ -111,6 +103,7 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
       return { kind: "already_claimed", occurrence: withClaim(occurrence, existingClaim) };
     }
 
+    await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
     const now = new Date();
     const claimedAt = now.toISOString();
     const claimExpiresAt = new Date(now.getTime() + CLAIM_LEASE_MINUTES * 60_000).toISOString();
@@ -145,7 +138,6 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
         claimedBy: actorId,
         claimedAt,
         claimExpiresAt,
-        version: occurrence.version + 1,
       },
       transactionId: transaction.$id,
     });
@@ -157,7 +149,8 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
     return { kind: "claimed", occurrence: withClaim(committed, claim) };
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
-    if (!isConflict(error)) throw error;
+    // Completion may remove the old lease before takeover stages its delete.
+    if (!isOccurrenceConflict(error) && !isMissing(error)) throw error;
     return getOccurrenceClaimState(occurrenceId, actorId);
   }
 }
@@ -166,12 +159,7 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
   const { databaseId, tables } = getServerAppwrite();
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
   try {
-    const occurrence = await tables.getRow<OccurrenceRow>({
-      databaseId,
-      tableId: TABLES.occurrences,
-      rowId: occurrenceId,
-      transactionId: transaction.$id,
-    });
+    const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, occurrenceId, transaction.$id);
     const member = await activeMember(occurrence, actorId, transaction.$id);
     let claim: OccurrenceClaimRow;
     try {
@@ -192,6 +180,7 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
       await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
       return { kind: "not_claimed", occurrence: withClaim(occurrence, hasActiveClaim(claim) ? claim : undefined) };
     }
+    await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
     const now = new Date().toISOString();
     await tables.updateRow<MemberRow>({
       databaseId,
@@ -204,7 +193,7 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
       databaseId,
       tableId: TABLES.occurrences,
       rowId: occurrence.$id,
-      data: { claimedBy: null, claimedAt: null, claimExpiresAt: null, version: occurrence.version + 1 },
+      data: { claimedBy: null, claimedAt: null, claimExpiresAt: null },
       transactionId: transaction.$id,
     });
     await tables.deleteRow({
@@ -218,7 +207,7 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
     return { kind: "released", occurrence: committed };
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
-    if (!isMissing(error) && !isConflict(error)) throw error;
+    if (!isMissing(error) && !isOccurrenceConflict(error)) throw error;
     return getOccurrenceClaimState(occurrenceId, actorId);
   }
 }

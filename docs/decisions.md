@@ -31,10 +31,33 @@ remains available for the handoff timeline and audit view.
 
 **Status:** accepted
 
-Every outcome mutation updates its occurrence inside a TablesDB transaction.
-Two caregivers acting concurrently therefore contend on the same row. Appwrite
-allows one transaction to commit and rejects the stale transaction with a
-conflict; the rejected request refetches and returns the winner.
+Claim acquisition, expired takeover, release, completion, and correction share
+bounded atomic increments in their existing TablesDB transactions. An unbounded
+increment or assigning `observedVersion + 1` is not compare-and-swap.
+
+The occurrence's own version is insufficient: schedule editing can delete a due
+occurrence and recreate its deterministic ID at version zero. Live lifecycle
+regressions reproduced stale completions committing across that reset.
+
+`occurrence_fences` holds a server-private, permanent counter per occurrence ID.
+Each mutation reads that counter **before** the occurrence used for decisions,
+then increments it with `max: observedCounter + 1` in the same transaction as its
+occurrence/lease/event/receipt changes. The existing occurrence-version bound is
+retained. Lifecycle deletion advances the permanent counter and removes the old
+lease atomically; it never removes the counter. Recreation and background
+generation may reset the occurrence version but cannot reset its durable fence.
+Do not prune these counters when occurrences or schedules are removed.
+
+Atomic numeric bounds and transaction rollback are documented Appwrite primitives;
+their combination is empirically verified against the configured server, including
+increment-first commit-time bound rejection. A post-commit reread is response data,
+not a concurrency guard. Reverify against new Appwrite server/SDK versions.
+
+`npm run test:fencing` covers distinct-caregiver contention and paused lease
+transitions; `npm run test:lifecycle` covers real schedule deletion/recreation,
+concurrent edits, fresh-generation completion, and completed history preservation.
+`npm run test:fixture-cleanup` simulates a lost membership-creation response and
+checks that discovery removes only the owning fixture's rows.
 
 The same transaction touches active membership, creates an append-only audit
 event, and writes a deterministic idempotency receipt. A partial history or a

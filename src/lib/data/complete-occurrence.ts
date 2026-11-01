@@ -14,6 +14,7 @@ import {
   type OccurrenceRow,
 } from "@/lib/domain/schema";
 import { stableHash, stableRowId } from "@/lib/domain/ids";
+import { fenceOccurrence, isOccurrenceConflict, readFencedOccurrence } from "@/lib/data/occurrence-fence";
 import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
 
 const TRANSACTION_TTL_SECONDS = 60;
@@ -33,8 +34,8 @@ export class CompletionForbiddenError extends Error {
 }
 
 export class CompletionClaimRequiredError extends Error {
-  constructor() {
-    super("Claim this action before recording its outcome.");
+  constructor(message = "Claim this action before recording its outcome.") {
+    super(message);
     this.name = "CompletionClaimRequiredError";
   }
 }
@@ -60,10 +61,6 @@ function fingerprint(input: CompletionInput) {
 
 function isMissing(error: unknown) {
   return error instanceof AppwriteException && error.code === 404;
-}
-
-function isConflict(error: unknown) {
-  return error instanceof AppwriteException && error.code === 409;
 }
 
 export async function completeOccurrence(rawInput: unknown): Promise<CompletionResult> {
@@ -111,12 +108,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
 
   try {
-    const occurrence = await tables.getRow<OccurrenceRow>({
-      databaseId,
-      tableId: TABLES.occurrences,
-      rowId: input.occurrenceId,
-      transactionId: transaction.$id,
-    });
+    const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, input.occurrenceId, transaction.$id);
     const memberId = stableRowId("mem", `${occurrence.circleId}:${input.actorId}`);
     let member: MemberRow;
     try {
@@ -162,6 +154,8 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       if (activeClaim.actorId !== input.actorId) throw new CompletionClaimedByAnotherError();
     }
 
+    await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
+
     // Every contender writes the same immutable event row. Its unique row ID
     // makes Appwrite reject all but one concurrent completion transaction.
     const eventId = isCorrection
@@ -191,7 +185,6 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
         claimedBy: null,
         claimedAt: null,
         claimExpiresAt: null,
-        version: occurrence.version + 1,
       },
       transactionId: transaction.$id,
     });
@@ -257,7 +250,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
     // A concurrent winner can remove the claim before another staged delete.
     // Treat that missing-row race the same as a transaction conflict and read
     // the committed outcome below.
-    const mayHaveConcurrentWinner = isConflict(error)
+    const mayHaveConcurrentWinner = isOccurrenceConflict(error)
       || isMissing(error)
       || error instanceof CompletionClaimRequiredError;
     if (!mayHaveConcurrentWinner) throw error;
@@ -268,7 +261,12 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       rowId: input.occurrenceId,
     });
 
-    if (winner.status === "due") throw error;
+    if (winner.status === "due") {
+      if (isOccurrenceConflict(error) || isMissing(error)) {
+        throw new CompletionClaimRequiredError("The handling claim changed. Refresh before recording its outcome.");
+      }
+      throw error;
+    }
 
     return { kind: "already_recorded", occurrence: winner };
   }

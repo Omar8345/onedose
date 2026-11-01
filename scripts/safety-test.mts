@@ -218,7 +218,7 @@ try {
   };
   if (sessionId) await cleanup(() => users.deleteSession({ userId: actorId, sessionId: sessionId! }));
   if (createdOccurrence) {
-    for (const tableId of [TABLES.commands, TABLES.events, TABLES.claims]) {
+    for (const tableId of [TABLES.commands, TABLES.events, TABLES.claims, TABLES.fences]) {
       await cleanup(async () => {
         const rows = await relatedRows(tableId);
         for (const row of rows.rows) await cleanup(() => tables.deleteRow({ databaseId, tableId, rowId: row.$id }));

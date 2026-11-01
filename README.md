@@ -211,6 +211,9 @@ npm run test:safety
 npm run test:caregivers
 npm run test:recipients
 npm run test:race
+npm run test:fencing
+npm run test:lifecycle
+npm run test:fixture-cleanup
 npm run test:demo
 npm run test:snapshot
 npm run test:demo-protection
@@ -234,7 +237,7 @@ On **31 October 2026, all 9 integration test suites passed** in a complete seria
 
 Schedule and recipient suites create uniquely named synthetic users, a Team, circle, and recipients, then clean up their own resources. They do not require the legacy Nora seed or modify Mitchell Family Care.
 
-The race suite verifies database contention and snapshot convergence separately from browser Realtime behavior.
+The race suite verifies database contention and snapshot convergence separately from browser Realtime behavior. The additional `test:fencing` suite exercises 25 distinct caregivers, repeated expired-lease takeover races, and paused stale completion/release transactions against isolated fixtures.
 
 A two-browser Realtime verification also passed: WebSocket events preceded snapshot requests and visible updates for claims, releases, takeovers, completions, and corrections, without page reloads. Observed update delays ranged from **4.6 to 7.8 seconds**.
 

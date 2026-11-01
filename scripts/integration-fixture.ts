@@ -28,7 +28,7 @@ export async function integrationFixture(suite: "schedule" | "recipient") {
     // Domain functions can create rows before returning. Discover only our circle's
     // descendants, rather than relying on IDs returned after successful calls.
     if (createdCircle) {
-      for (const tableId of [TABLES.occurrences, TABLES.schedules, TABLES.recipients]) {
+      for (const tableId of [TABLES.fences, TABLES.members, TABLES.occurrences, TABLES.schedules, TABLES.recipients]) {
         await attempt(async () => {
           const found = await tables.listRows({ databaseId, tableId, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false });
           if (found.rows.length === 100) throw new Error(`Unexpected fixture size in ${tableId}; manual inspection required.`);

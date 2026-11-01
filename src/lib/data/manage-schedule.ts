@@ -7,6 +7,7 @@ import { AppwriteException, ID, Permission, Query, Role, type Models } from "nod
 import { z } from "zod";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
+import { readFencedOccurrence, fenceOccurrence, isOccurrenceConflict } from "@/lib/data/occurrence-fence";
 import { ensureTodayOccurrences } from "@/lib/data/ensure-occurrences";
 import { stableRowId } from "@/lib/domain/ids";
 import { buildScheduleRrule, scheduleOccursToday } from "@/lib/domain/recurrence";
@@ -191,7 +192,29 @@ export async function updateSchedule(
         data: { dueAt: localTimeTodayAsUtc(input.localTime, effectiveTimezone) },
       });
     } else if (todayDue) {
-      await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: todayDue.$id });
+      const transaction = await tables.createTransaction({ ttl: 60 });
+      try {
+        const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, todayDue.$id, transaction.$id);
+        // A completion that won during the schedule edit must retain its history.
+        if (occurrence.status === "due") {
+          await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
+          try {
+            const claimId = stableRowId("clm", occurrence.$id);
+            await tables.getRow({ databaseId, tableId: TABLES.claims, rowId: claimId, transactionId: transaction.$id });
+            await tables.deleteRow({ databaseId, tableId: TABLES.claims, rowId: claimId, transactionId: transaction.$id });
+          } catch (error) {
+            if (!(error instanceof AppwriteException && error.code === 404)) throw error;
+          }
+          await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrence.$id, transactionId: transaction.$id });
+        }
+        await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
+      } catch (error) {
+        await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+        if (error instanceof AppwriteException && error.code === 404) {
+          throw new AppwriteException("The care action changed during this schedule edit. Refresh and try again.", 409, "transaction_conflict");
+        }
+        throw error;
+      }
     } else if (occursToday && !occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey)) {
       await ensureTodayOccurrences(circleId);
     }
@@ -227,6 +250,7 @@ export async function archiveSchedule(circleId: string, scheduleId: string, user
 }
 
 export function scheduleErrorStatus(error: unknown) {
+  if (isOccurrenceConflict(error)) return 409;
   if (error instanceof ScheduleForbiddenError) return 403;
   if (error instanceof ScheduleNotFoundError) return 404;
   if (error instanceof AppwriteException && error.code === 404) return 404;

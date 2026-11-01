@@ -8,6 +8,7 @@ export const TABLES = {
   schedules: "schedules",
   occurrences: "occurrences",
   claims: "occurrence_claims",
+  fences: "occurrence_fences",
   events: "audit_events",
   commands: "command_receipts",
   notifications: "notification_deliveries",

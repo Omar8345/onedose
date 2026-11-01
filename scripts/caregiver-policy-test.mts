@@ -119,6 +119,7 @@ try {
     revokedNextMutationRejected: true,
   });
 } finally {
+  await tables.deleteRow({ databaseId, tableId: TABLES.fences, rowId: stableRowId("fence", occurrenceId) }).catch((error) => { if (error.code !== 404) throw error; });
   for (const row of createdRows.reverse()) {
     await tables.deleteRow({ databaseId, tableId: row.tableId, rowId: row.rowId }).catch(() => undefined);
   }

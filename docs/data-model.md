@@ -65,8 +65,10 @@ can be edited, paused, completed, and archived independently.
 
 ### `occurrences`
 
-This is the contested row. Every completion transaction updates the same
-occurrence, so simultaneous caregivers cannot both commit.
+This is the contested row. Claim, release, completion, and correction transactions
+use bounded atomic increments of its `version` and a permanent fence counter
+before dependent writes. The permanent counter is read first and survives same-ID
+recreation. Updating the occurrence alone is not a durable generation guard.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -118,9 +120,10 @@ Indexes: key `circleId,recordedAt`; key `occurrenceId,recordedAt`.
 
 ### `occurrence_claims`
 
-The deterministic row ID is derived from the occurrence ID. Creating this row
-is the database arbitration point for simultaneous **I’m handling this**
-requests, so only one transaction can own the active lease.
+The deterministic row ID is derived from the occurrence ID. Its unique
+`occurrenceId` guarantees one stored lease. Expired takeover deletes and recreates
+that row, so uniqueness alone does not prevent stale takeover or completion.
+The shared occurrence-version fence rejects those stale transactions.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -131,6 +134,21 @@ requests, so only one transaction can own the active lease.
 | `expiresAt` | datetime | Lease expiry |
 
 Indexes: unique `occurrenceId`; key `circleId,expiresAt`.
+
+### `occurrence_fences`
+
+Server-private, permanent arbitration rows. Deterministic ID: `fence(occurrenceId)`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `circleId` | string(36) | Owning circle; isolated cleanup scope |
+| `occurrenceId` | string(36) | Stable occurrence identity |
+| `version` | integer | Monotonic transaction fence; never reset on occurrence recreation |
+
+Indexes: key `circleId`; key `occurrenceId`. No client permissions. Lazily created
+for existing occurrences; no seeded-record migration is needed. Provision this
+new table before deploying the application. Retain counters across schedule edits
+and occurrence deletion; only whole-circle administrative cleanup may remove them.
 
 ### `command_receipts`
 

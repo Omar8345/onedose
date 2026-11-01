@@ -40,6 +40,7 @@ async function removeRows(tableId: string, rows: Models.Row[]) {
 async function cleanup() {
   if (!setupComplete || process.env.KEEP_RACE_DATA === "1") return;
   const [events, commands, notifications, claims] = await Promise.all([rowsFor(TABLES.events), rowsFor(TABLES.commands), rowsFor(TABLES.notifications), rowsFor(TABLES.claims)]);
+  await removeRows(TABLES.fences, (await rowsFor(TABLES.fences)).rows);
   await removeRows(TABLES.claims, claims.rows);
   await removeRows(TABLES.notifications, notifications.rows);
   await removeRows(TABLES.commands, commands.rows);

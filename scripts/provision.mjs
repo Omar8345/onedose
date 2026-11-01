@@ -57,6 +57,11 @@ const outcomeValues = ["completed", "skipped", "refused", "unavailable"];
 
 const schema = [
   {
+    id: "occurrence_fences", name: "Permanent occurrence fences",
+    columns: [varchar("circleId", 36), varchar("occurrenceId", 36), integer("version")],
+    indexes: [index("by_circle", "key", ["circleId"]), index("by_occurrence", "key", ["occurrenceId"])],
+  },
+  {
     id: "care_circles",
     name: "Care circles",
     columns: [
