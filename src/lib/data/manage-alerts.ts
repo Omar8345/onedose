@@ -1,3 +1,6 @@
+import { readMembershipFence, fenceMembership, CaregiverMutationConflictError } from "@/lib/data/membership-fence";
+import { isOccurrenceConflict } from "@/lib/data/occurrence-fence";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
@@ -53,26 +56,54 @@ async function contextForCurrentUser() {
   if (member.circleId !== circleId || member.userId !== user.$id || member.status !== "active") {
     throw new AlertSettingsForbiddenError("Your caregiver access is no longer active.");
   }
+  await requireTeamMembership(circle.teamId, user.$id, member.role === "owner");
   return { user, circleId, circle, member, databaseId, tables };
 }
 
 export async function updateMyAvailability(input: z.infer<typeof availabilityInputSchema>) {
-  const { user, circleId, circle, databaseId, tables } = await contextForCurrentUser();
+  const { user } = await requireCurrentUser();
+  if (!user.prefs.circleId) throw new AlertSettingsForbiddenError("Set up your care circle first.");
+  return updateCaregiverAvailability(user.prefs.circleId, user.$id, input);
+}
+
+export async function updateCaregiverAvailability(circleId: string, userId: string, input: z.infer<typeof availabilityInputSchema>) {
+  const { databaseId, tables } = getServerAppwrite();
+  const circle = await tables.getRow<CircleRow>({ databaseId, tableId: TABLES.circles, rowId: circleId });
+  const user = { $id: userId };
   const rowId = stableRowId("pref", `${circleId}:${user.$id}`);
   const data = { circleId, userId: user.$id, availability: input.availability, updatedAt: new Date().toISOString() };
+  const transaction = await tables.createTransaction({ ttl: 60 });
   try {
-    return await tables.updateRow<CaregiverPreferenceRow>({
-      databaseId, tableId: TABLES.caregiverPreferences, rowId, data,
-    });
+    const memberId = stableRowId("mem", `${circleId}:${user.$id}`);
+    const fence = await readMembershipFence(tables, databaseId, circleId, memberId, transaction.$id);
+    const current = await tables.getRow<MemberRow>({ databaseId, tableId: TABLES.members, rowId: memberId, transactionId: transaction.$id });
+    if (current.circleId !== circleId || current.userId !== user.$id || current.status !== "active") throw new AlertSettingsForbiddenError();
+    await requireTeamMembership(circle.teamId, userId);
+    await fenceMembership(tables, databaseId, fence, transaction.$id);
+    let preference: CaregiverPreferenceRow;
+    try {
+      preference = await tables.updateRow<CaregiverPreferenceRow>({
+        databaseId, tableId: TABLES.caregiverPreferences, rowId, data, transactionId: transaction.$id,
+      });
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+      preference = await tables.createRow<CaregiverPreferenceRow>({
+        databaseId, tableId: TABLES.caregiverPreferences, rowId, data,
+        permissions: [Permission.read(Role.team(circle.teamId))], transactionId: transaction.$id,
+      });
+    }
+    await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
+    return preference;
   } catch (error) {
-    if (!isMissing(error)) throw error;
-    return tables.createRow<CaregiverPreferenceRow>({
-      databaseId,
-      tableId: TABLES.caregiverPreferences,
-      rowId,
-      data,
-      permissions: [Permission.read(Role.team(circle.teamId))],
-    });
+    await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    if (isOccurrenceConflict(error)) {
+      const member = await tables.getRow<MemberRow>({ databaseId, tableId: TABLES.members, rowId: stableRowId("mem", `${circleId}:${userId}`) });
+      if (member.circleId !== circleId || member.userId !== userId || member.status !== "active") throw new AlertSettingsForbiddenError("Your caregiver access is no longer active.");
+      await requireTeamMembership(circle.teamId, userId);
+      throw new CaregiverMutationConflictError();
+    }
+    if (error instanceof AppwriteException && error.code === 403) throw new AlertSettingsForbiddenError("Your caregiver access is no longer active.");
+    throw error;
   }
 }
 

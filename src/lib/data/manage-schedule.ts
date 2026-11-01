@@ -1,3 +1,6 @@
+import { readFencedSchedule, fenceSchedule, stageTodayOccurrence } from "../../../functions/reminders/src/schedule-lifecycle.js";
+import { existingOccurrenceForDay } from "../../../functions/reminders/src/occurrence-identity.js";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
 import { randomBytes } from "node:crypto";
 import { isProtectedCircle, isDemoCreatedSchedule } from "@/lib/demo/protection";
 import { PublicDemoRestriction, requireDemoScheduleIdentity } from "@/lib/demo/guard";
@@ -11,7 +14,7 @@ import { readFencedOccurrence, fenceOccurrence, isOccurrenceConflict } from "@/l
 import { ensureTodayOccurrences } from "@/lib/data/ensure-occurrences";
 import { stableRowId } from "@/lib/domain/ids";
 import { buildScheduleRrule, scheduleOccursToday } from "@/lib/domain/recurrence";
-import { TABLES, type MemberRow, type OccurrenceRow } from "@/lib/domain/schema";
+import { TABLES, type MemberRow } from "@/lib/domain/schema";
 import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
 export const scheduleInputSchema = z.object({
@@ -70,6 +73,7 @@ async function ownerContext(circleId: string, userId: string) {
   ]);
   if(isProtectedCircle(circleId))await requireDemoScheduleIdentity(userId);
   if (member.circleId!==circleId || member.userId!==userId || member.status !== "active" || (member.role !== "owner" && !(isProtectedCircle(circleId) && member.role==="caregiver"))) throw new ScheduleForbiddenError();
+  await requireTeamMembership(circle.teamId, userId, !isProtectedCircle(circleId));
   return { databaseId, tables, circle };
 }
 
@@ -95,6 +99,7 @@ export async function createSchedules(circleId: string, userId: string, input: S
 
   const schedules: ScheduleRow[] = [];
   const rrule = buildScheduleRrule(input);
+  const transaction = await tables.createTransaction({ ttl: 60 });
   try {
     for (const recipient of selectedRecipients) {
       if (!recipient) continue;
@@ -114,14 +119,12 @@ export async function createSchedules(circleId: string, userId: string, input: S
           archivedAt: null,
         },
         permissions: [Permission.read(Role.team(circle.teamId))],
+        transactionId: transaction.$id,
       }));
     }
+    await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
   } catch (error) {
-    await Promise.allSettled(schedules.map((schedule) => tables.deleteRow({
-      databaseId,
-      tableId: TABLES.schedules,
-      rowId: schedule.$id,
-    })));
+    await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
     throw error;
   }
 
@@ -141,86 +144,63 @@ export async function updateSchedule(
   input: ScheduleInput,
 ) {
   const { databaseId, tables, circle } = await ownerContext(circleId, userId);
-  const schedule = await tables.getRow<ScheduleRow>({
-    databaseId,
-    tableId: TABLES.schedules,
-    rowId: scheduleId,
-  });
-  if(isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId))throw new PublicDemoRestriction();
-  if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
-  if (schedule.archivedAt) throw new ScheduleNotFoundError();
-  const rrule = buildScheduleRrule(input);
-  let recipient: RecipientRow | null = null;
-  if (input.recipientId && input.recipientId !== schedule.recipientId) {
-    recipient = await tables.getRow<RecipientRow>({ databaseId, tableId: TABLES.recipients, rowId: input.recipientId });
-    if (recipient.circleId !== circleId || recipient.archivedAt) throw new ScheduleForbiddenError();
-  }
-
-  const updated = await tables.updateRow({
-    databaseId,
-    tableId: TABLES.schedules,
-    rowId: scheduleId,
-    data: {
-      title: input.title,
-      recipientId: recipient?.$id ?? schedule.recipientId,
-      instruction: input.instruction || null,
-      localTime: input.localTime,
-      rrule,
-      active: input.active,
-      timezone: recipient ? recipient.timezone ?? circle.timezone : schedule.timezone,
-    },
-  });
-
-  if (input.active) {
-    const occurrences = await tables.listRows<OccurrenceRow>({
-      databaseId,
-      tableId: TABLES.occurrences,
-      queries: [Query.equal("scheduleId", [scheduleId]), Query.limit(100)],
-      total: false,
-    });
-    const effectiveTimezone = recipient ? recipient.timezone ?? circle.timezone : schedule.timezone;
-    const todayKey = localDateKey(new Date(), effectiveTimezone);
-    const occursToday = scheduleOccursToday(rrule, effectiveTimezone);
-    const todayDue = occurrences.rows.find(
-      (row) => row.status === "due" && localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey,
-    );
-    if (todayDue && occursToday) {
-      await tables.updateRow({
-        databaseId,
-        tableId: TABLES.occurrences,
-        rowId: todayDue.$id,
-        data: { dueAt: localTimeTodayAsUtc(input.localTime, effectiveTimezone) },
-      });
-    } else if (todayDue) {
-      const transaction = await tables.createTransaction({ ttl: 60 });
-      try {
-        const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, todayDue.$id, transaction.$id);
-        // A completion that won during the schedule edit must retain its history.
-        if (occurrence.status === "due") {
-          await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
-          try {
-            const claimId = stableRowId("clm", occurrence.$id);
-            await tables.getRow({ databaseId, tableId: TABLES.claims, rowId: claimId, transactionId: transaction.$id });
-            await tables.deleteRow({ databaseId, tableId: TABLES.claims, rowId: claimId, transactionId: transaction.$id });
-          } catch (error) {
-            if (!(error instanceof AppwriteException && error.code === 404)) throw error;
-          }
-          await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrence.$id, transactionId: transaction.$id });
-        }
-        await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
-      } catch (error) {
-        await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
-        if (error instanceof AppwriteException && error.code === 404) {
-          throw new AppwriteException("The care action changed during this schedule edit. Refresh and try again.", 409, "transaction_conflict");
-        }
-        throw error;
-      }
-    } else if (occursToday && !occurrences.rows.some((row) => localDateKey(new Date(row.dueAt), effectiveTimezone) === todayKey)) {
-      await ensureTodayOccurrences(circleId);
+  const transaction = await tables.createTransaction({ ttl: 60 });
+  try {
+    const { schedule, fence: scheduleFence } = await readFencedSchedule(tables, databaseId, scheduleId, transaction.$id);
+    if (isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId)) throw new PublicDemoRestriction();
+    if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
+    if (schedule.archivedAt) throw new ScheduleNotFoundError();
+    let recipient: RecipientRow | null = null;
+    if (input.recipientId && input.recipientId !== schedule.recipientId) {
+      recipient = await tables.getRow<RecipientRow>({ databaseId, tableId: TABLES.recipients, rowId: input.recipientId, transactionId: transaction.$id });
+      if (recipient.circleId !== circleId || recipient.archivedAt) throw new ScheduleForbiddenError();
     }
+    const timezone = recipient ? recipient.timezone ?? circle.timezone : schedule.timezone;
+    const rrule = buildScheduleRrule(input);
+    const now = new Date();
+    await fenceSchedule(tables, databaseId, scheduleFence, transaction.$id);
+    const updated = await tables.updateRow<ScheduleRow>({
+      databaseId, tableId: TABLES.schedules, rowId: scheduleId,
+      data: { title: input.title, recipientId: recipient?.$id ?? schedule.recipientId,
+        instruction: input.instruction || null, localTime: input.localTime, rrule, active: input.active, timezone },
+      transactionId: transaction.$id,
+    });
+    if (input.active) {
+      const todayKey = localDateKey(now, timezone);
+      const existing = await existingOccurrenceForDay(tables, databaseId, scheduleId, todayKey, timezone, transaction.$id);
+      const occursToday = scheduleOccursToday(rrule, timezone, now);
+      if (existing?.status === "due") {
+        const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, existing.$id, transaction.$id);
+        if (occurrence.status === "due") {
+          // Both retiming and deletion arbitrate with completion at commit time.
+          await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
+          if (occursToday) {
+            await tables.updateRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrence.$id,
+              data: { dueAt: localTimeTodayAsUtc(input.localTime, timezone, now) }, transactionId: transaction.$id });
+          } else {
+            try {
+              const rowId = stableRowId("clm", occurrence.$id);
+              await tables.getRow({ databaseId, tableId: TABLES.claims, rowId, transactionId: transaction.$id });
+              await tables.deleteRow({ databaseId, tableId: TABLES.claims, rowId, transactionId: transaction.$id });
+            } catch (error) {
+              if (!(error instanceof AppwriteException && error.code === 404)) throw error;
+            }
+            await tables.deleteRow({ databaseId, tableId: TABLES.occurrences, rowId: occurrence.$id, transactionId: transaction.$id });
+          }
+        }
+      } else if (!existing && occursToday) {
+        await stageTodayOccurrence(tables, databaseId, circle, updated, now, transaction.$id);
+      }
+    }
+    await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
+    return updated;
+  } catch (error) {
+    await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    if (error instanceof AppwriteException && error.code === 404) {
+      throw new AppwriteException("The care action changed during this schedule edit. Refresh and try again.", 409, "transaction_conflict");
+    }
+    throw error;
   }
-
-  return updated;
 }
 
 export class ScheduleNotFoundError extends Error {
@@ -232,21 +212,24 @@ export class ScheduleNotFoundError extends Error {
 
 export async function archiveSchedule(circleId: string, scheduleId: string, userId: string) {
   const { databaseId, tables } = await ownerContext(circleId, userId);
-  const schedule = await tables.getRow<ScheduleRow>({
-    databaseId,
-    tableId: TABLES.schedules,
-    rowId: scheduleId,
-  });
-  if(isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId))throw new PublicDemoRestriction();
-  if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
-  if (schedule.archivedAt) return schedule;
-
-  return tables.updateRow<ScheduleRow>({
-    databaseId,
-    tableId: TABLES.schedules,
-    rowId: scheduleId,
-    data: { active: false, archivedAt: new Date().toISOString() },
-  });
+  const transaction = await tables.createTransaction({ ttl: 60 });
+  try {
+    const { schedule, fence } = await readFencedSchedule(tables, databaseId, scheduleId, transaction.$id);
+    if (isProtectedCircle(circleId) && !isDemoCreatedSchedule(scheduleId)) throw new PublicDemoRestriction();
+    if (schedule.circleId !== circleId) throw new ScheduleForbiddenError();
+    if (schedule.archivedAt) {
+      await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
+      return schedule;
+    }
+    await fenceSchedule(tables, databaseId, fence, transaction.$id);
+    const updated = await tables.updateRow<ScheduleRow>({ databaseId, tableId: TABLES.schedules, rowId: scheduleId,
+      data: { active: false, archivedAt: new Date().toISOString() }, transactionId: transaction.$id });
+    await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
+    return updated;
+  } catch (error) {
+    await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export function scheduleErrorStatus(error: unknown) {

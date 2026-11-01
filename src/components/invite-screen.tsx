@@ -68,15 +68,15 @@ export function InviteScreen({ details }: { details: InviteDetails | null }) {
           <>
             <span className="invite-icon invite-icon--success"><CheckCircle2 size={31} /></span>
             <span className="section-kicker">Invitation accepted</span>
-            <h1>You’re part of {state.circleName}.</h1>
+            <h1>{state.signedIn ? `You’re part of ${state.circleName}.` : "Invitation confirmed"}</h1>
             <p>
               {state.signedIn
                 ? "Your shared schedule is ready."
-                : "Sign in with the invited email to open the shared schedule."}
+                : "Sign in with the invited email to activate your care-circle access."}
             </p>
             <div className="setup-proof">
               <ShieldCheck size={20} />
-              <span><strong>Private by default</strong><small>Only accepted caregivers can access this circle.</small></span>
+              <span><strong>Private by default</strong><small>Only active caregivers can access this circle.</small></span>
             </div>
             <Link className="primary-button full-button" href="/">
               {state.signedIn ? "Open care circle" : <><Mail size={18} /> Continue with email</>}

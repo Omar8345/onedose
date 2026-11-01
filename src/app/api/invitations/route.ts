@@ -1,3 +1,4 @@
+import { requireTeamMembership } from "@/lib/data/team-authorization";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException, Query } from "node-appwrite";
@@ -34,6 +35,11 @@ export async function POST(request: Request) {
       return Response.json({ message: "Only the circle owner can invite caregivers." }, { status: 403 });
     }
 
+    const circle = await tables.getRow({ databaseId, tableId: TABLES.circles, rowId: circleId });
+    if (circle.teamId !== teamId || owner.userId !== user.$id || owner.circleId !== circleId) {
+      return Response.json({ message: "The selected Team does not belong to this circle." }, { status: 403 });
+    }
+    await requireTeamMembership(teamId, user.$id, true);
     const normalizedEmail = email.trim().toLowerCase();
     let memberships;
     try {

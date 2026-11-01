@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { Query } from "node-appwrite";
 import nextEnv from "@next/env";
 import type { MemberRow } from "../src/lib/domain/schema";
 
@@ -119,7 +120,9 @@ try {
     revokedNextMutationRejected: true,
   });
 } finally {
-  await tables.deleteRow({ databaseId, tableId: TABLES.fences, rowId: stableRowId("fence", occurrenceId) }).catch((error) => { if (error.code !== 404) throw error; });
+  const fences = await tables.listRows({ databaseId, tableId: TABLES.fences, queries: [Query.equal("circleId", [circleId]), Query.limit(100)], total: false });
+  assert.ok(fences.rows.length < 100);
+  for (const row of fences.rows) await tables.deleteRow({ databaseId, tableId: TABLES.fences, rowId: row.$id });
   for (const row of createdRows.reverse()) {
     await tables.deleteRow({ databaseId, tableId: row.tableId, rowId: row.rowId }).catch(() => undefined);
   }

@@ -1,7 +1,9 @@
+import { materializeSchedule, localDateKey } from "./schedule-lifecycle.js";
+export { scheduleOccursToday } from "./schedule-lifecycle.js";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { Permission, Query, Role } from "node-appwrite";
+import { Query } from "node-appwrite";
 
 export const TABLES = {
   circles: "care_circles",
@@ -23,62 +25,6 @@ function isConflict(error) {
 function stableId(prefix, value) {
   const hash = createHash("sha256").update(value).digest("hex");
   return `${prefix}_${hash.slice(0, 36 - prefix.length - 1)}`;
-}
-
-function localParts(date, timezone) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-
-  return Object.fromEntries(
-    parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]),
-  );
-}
-
-function localDateKey(date, timezone) {
-  const parts = localParts(date, timezone);
-  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
-}
-
-function localTimeTodayAsUtc(localTime, timezone, now) {
-  const today = localParts(now, timezone);
-  const [hour, minute] = localTime.split(":").map(Number);
-  const desired = Date.UTC(today.year, today.month - 1, today.day, hour, minute, 0);
-  let guess = desired;
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const shown = localParts(new Date(guess), timezone);
-    const shownAsUtc = Date.UTC(shown.year, shown.month - 1, shown.day, shown.hour, shown.minute, shown.second);
-    guess += desired - shownAsUtc;
-  }
-
-  return new Date(guess).toISOString();
-}
-
-function weekdayCode(date, timezone) {
-  const short = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: timezone }).format(date);
-  return { Mon: "MO", Tue: "TU", Wed: "WE", Thu: "TH", Fri: "FR", Sat: "SA", Sun: "SU" }[short];
-}
-
-export function scheduleOccursToday(rrule, timezone, now) {
-  const values = new Map(String(rrule).split(";").map((part) => {
-    const [key, ...rest] = part.split("=");
-    return [key, rest.join("=")];
-  }));
-  if (values.get("FREQ") === "WEEKLY") {
-    return (values.get("BYDAY") || "").split(",").includes(weekdayCode(now, timezone));
-  }
-  if (values.get("FREQ") === "ONCE") {
-    return values.get("DATE") === localDateKey(now, timezone);
-  }
-  return values.get("FREQ") === "DAILY";
 }
 
 async function listAllRows(tables, databaseId, tableId, queries = []) {
@@ -116,7 +62,7 @@ async function confirmedTeamUserIds(teams, teamId) {
   }
 }
 
-async function materializeCircle(tables, databaseId, circle, now) {
+export async function materializeCircle(tables, databaseId, circle, now) {
   const schedules = await listAllRows(tables, databaseId, TABLES.schedules, [
     Query.equal("circleId", [circle.$id]),
     Query.equal("active", [true]),
@@ -124,36 +70,12 @@ async function materializeCircle(tables, databaseId, circle, now) {
   ]);
   let created = 0;
 
-  await Promise.all(schedules.map(async (schedule) => {
-    if (!scheduleOccursToday(schedule.rrule, schedule.timezone, now)) return;
-    const dueAt = localTimeTodayAsUtc(schedule.localTime, schedule.timezone, now);
-    const dateKey = localDateKey(new Date(dueAt), schedule.timezone);
-    const rowId = stableId("occ", `${schedule.$id}:${dateKey}`);
-
-    try {
-      await tables.createRow({
-        databaseId,
-        tableId: TABLES.occurrences,
-        rowId,
-        data: {
-          circleId: circle.$id,
-          teamId: circle.teamId,
-          scheduleId: schedule.$id,
-          dueAt,
-          status: "due",
-          outcome: null,
-          completedBy: null,
-          completedAt: null,
-          activeEventId: null,
-          version: 0,
-        },
-        permissions: [Permission.read(Role.team(circle.teamId))],
-      });
-      created += 1;
-    } catch (error) {
-      if (!isConflict(error)) throw error;
-    }
-  }));
+  const results = await Promise.allSettled(schedules.map(schedule =>
+    materializeSchedule(tables, databaseId, circle, schedule, now)));
+  for (const result of results) {
+    if (result.status === "rejected") throw result.reason;
+    if (result.value) created++;
+  }
 
   return { schedules, created };
 }

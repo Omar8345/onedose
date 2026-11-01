@@ -1,3 +1,4 @@
+import { CaregiverMutationConflictError } from "@/lib/data/membership-fence";
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { AppwriteException, Query } from "node-appwrite";
 
@@ -37,6 +38,7 @@ async function handle(
     const fresh = await getOccurrenceClaimState(occurrenceId, user.$id);
     return await response({ ...fresh, kind: result.kind === "claimed" && fresh.occurrence.claimedBy === user.$id ? "claimed" : fresh.kind });
   } catch (error) {
+    if (error instanceof CaregiverMutationConflictError) return Response.json({ message: error.message, code: "caregiver_conflict" }, { status: 409 });
     if (error instanceof AppwriteException && error.code === 401) {
       return Response.json({ message: "Sign in to coordinate this action." }, { status: 401 });
     }

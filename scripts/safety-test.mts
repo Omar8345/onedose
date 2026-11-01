@@ -37,7 +37,7 @@ async function relatedRows(tableId: string) {
   return tables.listRows({
     databaseId,
     tableId,
-    queries: [Query.equal("occurrenceId", [occurrenceId]), Query.limit(25)],
+    queries: [Query.equal(tableId === TABLES.fences ? "circleId" : "occurrenceId", [tableId === TABLES.fences ? circleId : occurrenceId]), Query.limit(25)],
     total: false,
   });
 }

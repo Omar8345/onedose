@@ -17,6 +17,9 @@ import { stableHash, stableRowId } from "@/lib/domain/ids";
 import { fenceOccurrence, isOccurrenceConflict, readFencedOccurrence } from "@/lib/data/occurrence-fence";
 import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
 
+import { readMembershipFence, fenceMembership, membershipChangedWithoutOccurrenceChange, CaregiverMutationConflictError } from "@/lib/data/membership-fence";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
+
 const TRANSACTION_TTL_SECONDS = 60;
 
 export class CompletionInputConflictError extends Error {
@@ -96,20 +99,26 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
     if (member.circleId !== occurrence.circleId || !canReadOrRecordCircle(member, input.actorId)) {
       throw new CompletionForbiddenError();
     }
+    await requireTeamMembership(occurrence.teamId, input.actorId);
     if (existing.requestFingerprint !== requestFingerprint) {
       throw new CompletionInputConflictError();
     }
 
     return { kind: "replayed", occurrence, eventId: existing.eventId };
   } catch (error) {
+    if (error instanceof AppwriteException && error.code === 403) throw new CompletionForbiddenError();
     if (!isMissing(error)) throw error;
   }
 
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
+  let authorizationFence: Awaited<ReturnType<typeof readMembershipFence>> | undefined;
+  let occurrenceFence: { $id: string; version: number } | undefined;
 
   try {
     const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, input.occurrenceId, transaction.$id);
     const memberId = stableRowId("mem", `${occurrence.circleId}:${input.actorId}`);
+    occurrenceFence = fence;
+    authorizationFence = await readMembershipFence(tables, databaseId, occurrence.circleId, memberId, transaction.$id);
     let member: MemberRow;
     try {
       member = await tables.getRow<MemberRow>({
@@ -127,6 +136,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       throw new CompletionForbiddenError();
     }
 
+    await requireTeamMembership(occurrence.teamId, input.actorId);
     const isCorrection = Boolean(input.correctsEventId);
     const isCurrentCorrection = isCorrection
       && occurrence.status !== "due"
@@ -154,6 +164,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       if (activeClaim.actorId !== input.actorId) throw new CompletionClaimedByAnotherError();
     }
 
+    await fenceMembership(tables, databaseId, authorizationFence, transaction.$id);
     await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
 
     // Every contender writes the same immutable event row. Its unique row ID
@@ -163,7 +174,7 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       : stableRowId("evt", occurrence.$id);
     const now = new Date().toISOString();
 
-    // Touching membership makes a concurrent revocation conflict with this commit.
+    // Informational timestamp; the private membership counter enforces revocation.
     await tables.updateRow<MemberRow>({
       databaseId,
       tableId: TABLES.members,
@@ -247,6 +258,8 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
       .updateTransaction({ transactionId: transaction.$id, rollback: true })
       .catch(() => undefined);
 
+    if (error instanceof AppwriteException && error.code === 403) throw new CompletionForbiddenError();
+
     // A concurrent winner can remove the claim before another staged delete.
     // Treat that missing-row race the same as a transaction conflict and read
     // the committed outcome below.
@@ -256,14 +269,25 @@ export async function completeOccurrence(rawInput: unknown): Promise<CompletionR
     if (!mayHaveConcurrentWinner) throw error;
 
     const winner = await tables.getRow<OccurrenceRow>({
-      databaseId,
-      tableId: TABLES.occurrences,
-      rowId: input.occurrenceId,
+      databaseId, tableId: TABLES.occurrences, rowId: input.occurrenceId,
     });
+    let currentMember: MemberRow;
+    try {
+      currentMember = await tables.getRow<MemberRow>({ databaseId, tableId: TABLES.members,
+        rowId: stableRowId("mem", `${winner.circleId}:${input.actorId}`) });
+    } catch (membershipError) {
+      if (isMissing(membershipError)) throw new CompletionForbiddenError();
+      throw membershipError;
+    }
+    if (currentMember.circleId !== winner.circleId || !canReadOrRecordCircle(currentMember, input.actorId)) throw new CompletionForbiddenError();
+    await requireTeamMembership(winner.teamId, input.actorId);
 
     if (winner.status === "due") {
+      if (isOccurrenceConflict(error) && await membershipChangedWithoutOccurrenceChange(tables, databaseId, authorizationFence, occurrenceFence)) {
+        throw new CaregiverMutationConflictError();
+      }
       if (isOccurrenceConflict(error) || isMissing(error)) {
-        throw new CompletionClaimRequiredError("The handling claim changed. Refresh before recording its outcome.");
+        throw new CompletionClaimRequiredError("The care action or handling claim changed. Refresh before recording its outcome.");
       }
       throw error;
     }

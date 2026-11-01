@@ -519,8 +519,11 @@ export function CareDashboard({
   }
 
   async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.refresh();
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Sign out could not be confirmed. Please try again.");
+      router.refresh();
+    } catch { setRefreshError("Sign out could not be confirmed. Please try signing out again."); }
   }
 
   if(accessLost)return <main className="setup-shell"><p>Checking your access…</p></main>;
@@ -685,7 +688,7 @@ export function CareDashboard({
             onRecipientFilterChange={setRecipientFilter}
           />
         ) : view === "caregivers" ? (
-          <CaregiversView circle={circle} viewerId={viewer.id} />
+          <CaregiversView circle={circle} viewerId={viewer.id} onRefresh={refreshSnapshot} refreshFailed={Boolean(refreshError)} />
         ) : (
           <ScheduleView
             circle={circle}
@@ -792,9 +795,13 @@ export function CareDashboard({
 function CaregiversView({
   circle,
   viewerId,
+  onRefresh,
+  refreshFailed,
 }: {
   circle: CareCircle;
   viewerId: string;
+  onRefresh: () => Promise<void>;
+  refreshFailed: boolean;
 }) {
   const router = useRouter();
   const [revoking, setRevoking] = useState<string | null>(null);
@@ -813,10 +820,10 @@ function CaregiversView({
   const [savingRules, setSavingRules] = useState(false);
 
   useEffect(() => {
-    if (circle.viewerRole !== "owner") return;
-    const timer = window.setInterval(() => router.refresh(), 30_000);
+    if (circle.viewerRole !== "owner" || refreshFailed) return;
+    const timer = window.setInterval(() => void onRefresh(), 30_000);
     return () => window.clearInterval(timer);
-  }, [circle.viewerRole, router]);
+  }, [circle.viewerRole, onRefresh, refreshFailed]);
 
   async function changeAvailability(next: CareCircle["viewerAvailability"]) {
     setSavingAvailability(true);

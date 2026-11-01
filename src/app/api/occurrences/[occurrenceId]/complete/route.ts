@@ -1,3 +1,4 @@
+import { CaregiverMutationConflictError } from "@/lib/data/membership-fence";
 import { AppwriteException } from "node-appwrite";
 import { z } from "zod";
 
@@ -49,6 +50,7 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (error instanceof CaregiverMutationConflictError) return Response.json({ message: error.message, code: "caregiver_conflict" }, { status: 409 });
     if (error instanceof z.ZodError) {
       return Response.json({ message: "The completion request is invalid." }, { status: 400 });
     }

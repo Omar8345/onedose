@@ -73,8 +73,11 @@ export function OnboardingScreen({ name }: { name: string }) {
 
   async function signOut() {
     setBusy(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.refresh();
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Sign out could not be confirmed. Please try again.");
+      router.refresh();
+    } catch { setError("Sign out could not be confirmed. Please try again."); setBusy(false); }
   }
 
   return (

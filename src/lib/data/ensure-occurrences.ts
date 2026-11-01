@@ -1,12 +1,10 @@
 import "server-only";
 
-import { AppwriteException, Permission, Query, Role, type Models } from "node-appwrite";
+import { Query, type Models } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
-import { stableRowId } from "@/lib/domain/ids";
+import { materializeSchedule } from "../../../functions/reminders/src/schedule-lifecycle.js";
 import { TABLES } from "@/lib/domain/schema";
-import { scheduleOccursToday } from "@/lib/domain/recurrence";
-import { localDateKey, localTimeTodayAsUtc } from "@/lib/domain/time";
 
 type CircleRow = Models.Row & { teamId: string; timezone: string };
 type ScheduleRow = Models.Row & {
@@ -35,36 +33,7 @@ export async function ensureTodayOccurrences(circleId: string, now = new Date())
     }),
   ]);
 
-  await Promise.all(schedules.rows.map(async (schedule) => {
-    if (!scheduleOccursToday(schedule.rrule, schedule.timezone, now)) return;
-    const dueAt = localTimeTodayAsUtc(schedule.localTime, schedule.timezone, now);
-    const dateKey = localDateKey(new Date(dueAt), schedule.timezone);
-    const rowId = stableRowId("occ", `${schedule.$id}:${dateKey}`);
-
-    try {
-      await tables.createRow({
-        databaseId,
-        tableId: TABLES.occurrences,
-        rowId,
-        data: {
-          circleId,
-          teamId: circle.teamId,
-          scheduleId: schedule.$id,
-          dueAt,
-          status: "due",
-          outcome: null,
-          completedBy: null,
-          completedAt: null,
-          activeEventId: null,
-          claimedBy: null,
-          claimedAt: null,
-          claimExpiresAt: null,
-          version: 0,
-        },
-        permissions: [Permission.read(Role.team(circle.teamId))],
-      });
-    } catch (error) {
-      if (!(error instanceof AppwriteException && error.code === 409)) throw error;
-    }
-  }));
+  const results = await Promise.allSettled(schedules.rows.map(schedule =>
+    materializeSchedule(tables, databaseId, circle, schedule, now)));
+  for (const result of results) if (result.status === "rejected") throw result.reason;
 }

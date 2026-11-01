@@ -8,6 +8,9 @@ import { canReadOrRecordCircle } from "@/lib/data/caregiver-policy";
 import { stableRowId } from "@/lib/domain/ids";
 import { TABLES, type MemberRow, type OccurrenceClaimRow, type OccurrenceRow } from "@/lib/domain/schema";
 
+import { readMembershipFence, fenceMembership, membershipChangedWithoutOccurrenceChange, CaregiverMutationConflictError } from "@/lib/data/membership-fence";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
+
 const TRANSACTION_TTL_SECONDS = 60;
 export const CLAIM_LEASE_MINUTES = 15;
 
@@ -50,9 +53,10 @@ async function activeMember(occurrence: OccurrenceRow, actorId: string, transact
       transactionId,
     });
     if (member.circleId !== occurrence.circleId || !canReadOrRecordCircle(member, actorId)) throw new ClaimForbiddenError();
+    await requireTeamMembership(occurrence.teamId, actorId);
     return member;
   } catch (error) {
-    if (isMissing(error)) throw new ClaimForbiddenError();
+    if (isMissing(error) || (error instanceof AppwriteException && error.code === 403)) throw new ClaimForbiddenError();
     throw error;
   }
 }
@@ -79,8 +83,12 @@ export async function getOccurrenceClaimState(occurrenceId: string, actorId: str
 export async function claimOccurrence(occurrenceId: string, actorId: string): Promise<OccurrenceClaimResult> {
   const { databaseId, tables } = getServerAppwrite();
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
+  let authorizationFence: Awaited<ReturnType<typeof readMembershipFence>> | undefined;
+  let occurrenceFence: { $id: string; version: number } | undefined;
   try {
     const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, occurrenceId, transaction.$id);
+    occurrenceFence = fence;
+    authorizationFence = await readMembershipFence(tables, databaseId, occurrence.circleId, stableRowId("mem", `${occurrence.circleId}:${actorId}`), transaction.$id);
     const member = await activeMember(occurrence, actorId, transaction.$id);
     if (occurrence.status !== "due") {
       await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
@@ -103,6 +111,7 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
       return { kind: "already_claimed", occurrence: withClaim(occurrence, existingClaim) };
     }
 
+    await fenceMembership(tables, databaseId, authorizationFence, transaction.$id);
     await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
     const now = new Date();
     const claimedAt = now.toISOString();
@@ -149,17 +158,24 @@ export async function claimOccurrence(occurrenceId: string, actorId: string): Pr
     return { kind: "claimed", occurrence: withClaim(committed, claim) };
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    if (error instanceof AppwriteException && error.code === 403) throw new ClaimForbiddenError();
     // Completion may remove the old lease before takeover stages its delete.
     if (!isOccurrenceConflict(error) && !isMissing(error)) throw error;
-    return getOccurrenceClaimState(occurrenceId, actorId);
+    const current = await getOccurrenceClaimState(occurrenceId, actorId);
+    if (isOccurrenceConflict(error) && await membershipChangedWithoutOccurrenceChange(tables, databaseId, authorizationFence, occurrenceFence)) throw new CaregiverMutationConflictError();
+    return current;
   }
 }
 
 export async function releaseOccurrenceClaim(occurrenceId: string, actorId: string): Promise<OccurrenceClaimResult> {
   const { databaseId, tables } = getServerAppwrite();
   const transaction = await tables.createTransaction({ ttl: TRANSACTION_TTL_SECONDS });
+  let authorizationFence: Awaited<ReturnType<typeof readMembershipFence>> | undefined;
+  let occurrenceFence: { $id: string; version: number } | undefined;
   try {
     const { occurrence, fence } = await readFencedOccurrence(tables, databaseId, occurrenceId, transaction.$id);
+    occurrenceFence = fence;
+    authorizationFence = await readMembershipFence(tables, databaseId, occurrence.circleId, stableRowId("mem", `${occurrence.circleId}:${actorId}`), transaction.$id);
     const member = await activeMember(occurrence, actorId, transaction.$id);
     let claim: OccurrenceClaimRow;
     try {
@@ -180,6 +196,7 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
       await tables.updateTransaction({ transactionId: transaction.$id, rollback: true });
       return { kind: "not_claimed", occurrence: withClaim(occurrence, hasActiveClaim(claim) ? claim : undefined) };
     }
+    await fenceMembership(tables, databaseId, authorizationFence, transaction.$id);
     await fenceOccurrence(tables, databaseId, occurrence, transaction.$id, fence);
     const now = new Date().toISOString();
     await tables.updateRow<MemberRow>({
@@ -207,7 +224,10 @@ export async function releaseOccurrenceClaim(occurrenceId: string, actorId: stri
     return { kind: "released", occurrence: committed };
   } catch (error) {
     await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    if (error instanceof AppwriteException && error.code === 403) throw new ClaimForbiddenError();
     if (!isMissing(error) && !isOccurrenceConflict(error)) throw error;
-    return getOccurrenceClaimState(occurrenceId, actorId);
+    const current = await getOccurrenceClaimState(occurrenceId, actorId);
+    if (isOccurrenceConflict(error) && await membershipChangedWithoutOccurrenceChange(tables, databaseId, authorizationFence, occurrenceFence)) throw new CaregiverMutationConflictError();
+    return current;
   }
 }

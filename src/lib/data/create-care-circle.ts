@@ -1,3 +1,4 @@
+import { occurrenceRowId, occurrenceDateKey } from "../../../functions/reminders/src/occurrence-identity.js";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
@@ -7,6 +8,7 @@ import { z } from "zod";
 import type { OneDosePrefs } from "@/lib/auth/session";
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { stableRowId } from "@/lib/domain/ids";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
 import { TABLES } from "@/lib/domain/schema";
 
 export const onboardingSchema = z.object({
@@ -65,10 +67,11 @@ export async function createCareCircle({
   new Intl.DateTimeFormat("en", { timeZone: input.timezone }).format();
 
   const { databaseId, tables, teams } = getServerAppwrite();
+  await requireTeamMembership(teamId, userId, true);
   const circleId = ID.unique();
   const recipientId = ID.unique();
   const scheduleId = ID.unique();
-  const occurrenceId = ID.unique();
+  const occurrenceId = occurrenceRowId(scheduleId, occurrenceDateKey(new Date(), input.timezone));
   const memberId = stableRowId("mem", `${circleId}:${userId}`);
   const teamRead = [Permission.read(Role.team(teamId))];
   const transaction = await tables.createTransaction({ ttl: 60 });
@@ -150,11 +153,17 @@ export async function createCareCircle({
     });
     const recovered = existing.rows[0];
     if (!recovered) throw error;
-    await teams.updateName(teamId, input.circleName);
+    await requireTeamMembership(teamId, userId, true);
+    const member = await tables.getRow({ databaseId, tableId: TABLES.members, rowId: stableRowId("mem", `${recovered.$id}:${userId}`) });
+    if (member.userId !== userId || member.circleId !== recovered.$id || member.status !== "active" || member.role !== "owner") {
+      throw new AppwriteException("Only the existing circle owner can recover onboarding.", 403, "onedose_forbidden");
+    }
+    // Recovery does not rename an established circle or Team.
     await account.updatePrefs({ prefs: { primaryTeamId: teamId, circleId: recovered.$id } as OneDosePrefs });
     return recovered.$id;
   }
 
+  await requireTeamMembership(teamId, userId, true);
   await teams.updateName(teamId, input.circleName);
   await account.updatePrefs({ prefs: { primaryTeamId: teamId, circleId } as OneDosePrefs });
   return circleId;

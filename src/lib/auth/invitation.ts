@@ -1,13 +1,13 @@
+import { activateCircleMember } from "./activate-circle-member";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
 import { cookies } from "next/headers";
-import { AppwriteException, Permission, Query, Role, type Models } from "node-appwrite";
+import { Query, type Models } from "node-appwrite";
 
 import { getServerAppwrite } from "@/lib/appwrite/server";
 import { getSessionServices, type OneDosePrefs } from "@/lib/auth/session";
-import { stableRowId } from "@/lib/domain/ids";
-import { TABLES, type MemberRow } from "@/lib/domain/schema";
+import { TABLES } from "@/lib/domain/schema";
 
 const PENDING_TEAM_COOKIE = "onedose_pending_team";
 const PENDING_TEAM_MAX_AGE_SECONDS = 30 * 60;
@@ -62,32 +62,8 @@ export async function activateTeamForSession(secret: string, teamId: string) {
   const circle = circles.rows[0];
   if (!circle) throw new Error("The invited care circle no longer exists.");
 
-  const memberId = stableRowId("mem", `${circle.$id}:${user.$id}`);
-  const role: MemberRow["role"] = membership.roles.includes("owner") ? "owner" : "caregiver";
-
-  try {
-    await tables.createRow({
-      databaseId,
-      tableId: TABLES.members,
-      rowId: memberId,
-      data: {
-        circleId: circle.$id,
-        userId: user.$id,
-        role,
-        status: "active",
-        lastMutationAt: null,
-      },
-      permissions: [Permission.read(Role.team(teamId))],
-    });
-  } catch (error) {
-    if (!(error instanceof AppwriteException && error.code === 409)) throw error;
-    await tables.updateRow({
-      databaseId,
-      tableId: TABLES.members,
-      rowId: memberId,
-      data: { role, status: "active" },
-    });
-  }
+  const role = membership.roles.includes("owner") ? "owner" : "caregiver";
+  await activateCircleMember(circle.$id, teamId, user.$id, role);
 
   await account.updatePrefs<OneDosePrefs>({
     prefs: { ...user.prefs, primaryTeamId: teamId, circleId: circle.$id },

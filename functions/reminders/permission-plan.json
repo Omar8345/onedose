@@ -1,0 +1,11 @@
+{
+  "status": "proposed-requires-separate-operator-approval",
+  "projectId": "6ad61f280034f679d696",
+  "functionId": "6ad9fc2c0002e79e56b1",
+  "execute": [],
+  "scopes": ["rows.read", "rows.write", "teams.read", "messages.write"],
+  "scopeCompatibility": "Retain only provider-required aliases of TablesDB row scopes if Appwrite expands them automatically; do not retain independent vector/document access grants.",
+  "removeUnusedScopes": ["users.read", "users.write"],
+  "triggers": "Do not change schedule, events, enabled state, or activation as part of this proposal.",
+  "deploymentGate": "Operator must approve, apply, and verify empty execute access and minimal runtime scopes before reopening production traffic. This file is not applied automatically."
+}

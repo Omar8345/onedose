@@ -5,9 +5,11 @@ import {DEMO_ACCOUNTS,DEMO_TARGET} from '../src/lib/demo/config';
 import {isProtectedCircle,isPublicDemoUser,isDemoCreatedSchedule} from '../src/lib/demo/protection';
 import {POST as initiate} from '../src/app/api/auth/email/route';
 import {POST as verify} from '../src/app/api/auth/verify/route';
-const {Users,Account,AppwriteException,TablesDB}=createRequire(import.meta.url)('node-appwrite');
+const {Users,Account,AppwriteException,TablesDB,Teams}=createRequire(import.meta.url)('node-appwrite');
 const originalGet=Users.prototype.get,originalToken=Account.prototype.createEmailToken,originalSession=Account.prototype.createSession;
+const originalMemberships=Teams.prototype.listMemberships;
 const originalRow=TablesDB.prototype.getRow,originalUpdate=TablesDB.prototype.updateRow;
+const originalCreateTransaction=TablesDB.prototype.createTransaction,originalUpdateTransaction=TablesDB.prototype.updateTransaction,originalIncrement=TablesDB.prototype.incrementRowColumn;
 const saved={...process.env};let tokens=0,exchanges=0;
 try{
  Object.assign(process.env,{NEXT_PUBLIC_APPWRITE_ENDPOINT:DEMO_TARGET.endpoint,NEXT_PUBLIC_APPWRITE_PROJECT_ID:DEMO_TARGET.projectId,NEXT_PUBLIC_APPWRITE_DATABASE_ID:DEMO_TARGET.databaseId,APPWRITE_API_KEY:'local-test-placeholder'});
@@ -25,8 +27,12 @@ try{
  assert.equal(tokens,1);assert.equal(exchanges,1);
  assert.equal(isProtectedCircle('demo_mitchell_circle'),true);assert.equal(isProtectedCircle('other-circle'),false);
  assert.equal(isDemoCreatedSchedule('demo_mitchell_morning'),false);assert.equal(isDemoCreatedSchedule('public_demo_'+'a'.repeat(24)),true);
+ Teams.prototype.listMemberships=async({teamId}:{teamId:string})=>{assert.equal(teamId,'ordinary-team');return {memberships:[{userId:'ordinary-user',confirm:true,roles:['owner']}]}};
+ TablesDB.prototype.createTransaction=async()=>({$id:'policy_tx'});
+ TablesDB.prototype.updateTransaction=async()=>({});
+ TablesDB.prototype.incrementRowColumn=async()=>({version:1});
  let role='caregiver';
- TablesDB.prototype.getRow=async({tableId}:{tableId:string})=>tableId==='care_circles'?{$id:'ordinary-circle',teamId:'ordinary-team'}:tableId==='circle_members'?{circleId:'ordinary-circle',userId:'ordinary-user',status:'active',role}:{$id:'ordinary-schedule',circleId:'ordinary-circle',archivedAt:null};
+ TablesDB.prototype.getRow=async({tableId}:{tableId:string})=>tableId==='care_circles'?{$id:'ordinary-circle',teamId:'ordinary-team'}:tableId==='circle_members'?{circleId:'ordinary-circle',userId:'ordinary-user',status:'active',role}:tableId==='occurrence_fences'?{$id:'policy_fence',circleId:'ordinary-circle',occurrenceId:'ordinary-schedule',version:0}:{$id:'ordinary-schedule',circleId:'ordinary-circle',archivedAt:null};
  TablesDB.prototype.updateRow=async({data}:{data:unknown})=>data;
  await assert.rejects(archiveSchedule('ordinary-circle','ordinary-schedule','ordinary-user'),ScheduleForbiddenError);
  role='owner';assert.equal((await archiveSchedule('ordinary-circle','ordinary-schedule','ordinary-user')).active,false);
@@ -34,4 +40,4 @@ try{
  assert.equal(isPublicDemoUser('demo_mitchell_sarah'),false);
  assert.equal((await initiate(request({email:DEMO_ACCOUNTS.sarah.email}))).status,200);
  console.log('PASS: all demo OTP initiations/exchanges blocked before Auth calls; ordinary users/other projects unchanged; schedule namespace policy. No live writes.');
-}finally{TablesDB.prototype.getRow=originalRow;TablesDB.prototype.updateRow=originalUpdate;Users.prototype.get=originalGet;Account.prototype.createEmailToken=originalToken;Account.prototype.createSession=originalSession;for(const k of Object.keys(process.env))if(!(k in saved))delete process.env[k];Object.assign(process.env,saved);}
+}finally{TablesDB.prototype.createTransaction=originalCreateTransaction;TablesDB.prototype.updateTransaction=originalUpdateTransaction;TablesDB.prototype.incrementRowColumn=originalIncrement;Teams.prototype.listMemberships=originalMemberships;TablesDB.prototype.getRow=originalRow;TablesDB.prototype.updateRow=originalUpdate;Users.prototype.get=originalGet;Account.prototype.createEmailToken=originalToken;Account.prototype.createSession=originalSession;for(const k of Object.keys(process.env))if(!(k in saved))delete process.env[k];Object.assign(process.env,saved);}

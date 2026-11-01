@@ -137,12 +137,14 @@ Indexes: unique `occurrenceId`; key `circleId,expiresAt`.
 
 ### `occurrence_fences`
 
-Server-private, permanent arbitration rows. Deterministic ID: `fence(occurrenceId)`.
+Server-private, permanent arbitration rows. Deterministic IDs: `fence(occurrenceId)`
+for occurrence lifecycles, `auth(memberId)` for membership authorization, and
+`sched(scheduleId)` for schedule lifecycle arbitration.
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `circleId` | string(36) | Owning circle; isolated cleanup scope |
-| `occurrenceId` | string(36) | Stable occurrence identity |
+| `occurrenceId` | string(36) | Occurrence ID, member ID (`auth_`), or schedule ID (`sched_`) |
 | `version` | integer | Monotonic transaction fence; never reset on occurrence recreation |
 
 Indexes: key `circleId`; key `occurrenceId`. No client permissions. Lazily created
@@ -242,3 +244,34 @@ flow uses four staged writes.
   checks active membership, and performs mutations with the server SDK.
 - `actorId`, `circleId`, and team permissions are never trusted from browser
   display state.
+
+### Membership authorization counters
+
+The private `occurrence_fences` table has three disjoint ID namespaces. Existing
+`fence_` rows identify occurrences. New `auth_` rows identify deterministic
+`circle_members` IDs: their legacy-named `occurrenceId` value is that `mem_` ID,
+not an occurrence. The circle ID and resource ID are checked on every read.
+Counters are never reset or deleted by production lifecycle code. They initialize
+lazily without a backfill and have no client permissions.
+
+Caregiver transitions bound an atomic membership-counter increment in the same
+transaction as occurrence, claim, event and receipt writes. Application revocation
+advances the counter and changes member status atomically. Unlike a timestamp
+write or a second membership read, the database bound rejects a transaction that
+was authorized before revocation but attempts to commit afterward. Concurrent
+operations by the same member can conflict and require an explicit refresh.
+
+### Schedule lifecycle counters
+
+Permanent `sched_` counters use the same private table and store the schedule ID
+in `occurrenceId`. Both app and worker import the same lifecycle module. Before
+creating an occurrence, they read the counter before the authoritative schedule
+and bound its increment in the creation transaction. Schedule edits, archive, and
+timezone propagation advance that same counter. Read-only fast exits cannot
+authorize writes. Initial parent batches are committed atomically.
+
+Edits update the parent and today's pending occurrence in one transaction, using
+the occurrence fence as well. A completion that wins first rejects the stale
+retiming transaction; completed timing, events, and receipts remain unchanged.
+Counters survive deletion/recreation and require neither schema changes nor a
+backfill. Never prune any production fence namespace as an orphan.

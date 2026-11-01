@@ -9,6 +9,9 @@ import { stableRowId } from "@/lib/domain/ids";
 import { TABLES, type MemberRow } from "@/lib/domain/schema";
 import { canRevokeMembership } from "@/lib/data/caregiver-policy";
 
+import { readMembershipFence } from "@/lib/data/membership-fence";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
+
 export class CaregiverManagementForbiddenError extends Error {
   constructor(message = "Only the care circle owner can manage caregivers.") {
     super(message);
@@ -57,6 +60,7 @@ export async function revokeCaregiverForOwner({
     throw new CaregiverManagementForbiddenError();
   }
 
+  await requireTeamMembership(teamId, ownerId, true);
   const memberships = await teams.listMemberships({
     teamId,
     queries: [Query.limit(100)],
@@ -70,28 +74,32 @@ export async function revokeCaregiverForOwner({
 
   const memberId = stableRowId("mem", `${circleId}:${membership.userId}`);
   const now = new Date().toISOString();
+  const transaction = await tables.createTransaction({ ttl: 60 });
   try {
-    await tables.updateRow<MemberRow>({
-      databaseId,
-      tableId: TABLES.members,
-      rowId: memberId,
-      data: { status: "revoked", lastMutationAt: now },
-    });
+    const fence = await readMembershipFence(tables, databaseId, circleId, memberId, transaction.$id, true);
+    // Revocation must advance the counter even if a valid operation committed
+    // since its read. Future and stale bounded increments then fail atomically.
+    await tables.incrementRowColumn({ databaseId, tableId: TABLES.fences, rowId: fence.$id,
+      column: "version", value: 1, transactionId: transaction.$id });
+    try {
+      await tables.updateRow<MemberRow>({
+        databaseId, tableId: TABLES.members, rowId: memberId,
+        data: { status: "revoked", lastMutationAt: now }, transactionId: transaction.$id,
+      });
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+      await tables.createRow<MemberRow>({
+        databaseId, tableId: TABLES.members, rowId: memberId,
+        data: { circleId, userId: membership.userId,
+          role: membership.roles.includes("viewer") ? "viewer" : "caregiver",
+          status: "revoked", lastMutationAt: now },
+        permissions: [Permission.read(Role.team(teamId))], transactionId: transaction.$id,
+      });
+    }
+    await tables.updateTransaction({ transactionId: transaction.$id, commit: true });
   } catch (error) {
-    if (!isMissing(error)) throw error;
-    await tables.createRow<MemberRow>({
-      databaseId,
-      tableId: TABLES.members,
-      rowId: memberId,
-      data: {
-        circleId,
-        userId: membership.userId,
-        role: membership.roles.includes("viewer") ? "viewer" : "caregiver",
-        status: "revoked",
-        lastMutationAt: now,
-      },
-      permissions: [Permission.read(Role.team(teamId))],
-    });
+    await tables.updateTransaction({ transactionId: transaction.$id, rollback: true }).catch(() => undefined);
+    throw error;
   }
 
   try {

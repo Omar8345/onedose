@@ -1,3 +1,6 @@
+import { checkConfirmedInvitation } from "@/lib/auth/activate-circle-member";
+import { InvitationRecoveryRequiredError, InvitationActivationUnavailableError } from "@/lib/auth/activation-policy";
+import { CaregiverMutationConflictError } from "@/lib/data/membership-fence";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import { PublicDemoRestriction } from "@/lib/demo/guard";
 import { AppwriteException } from "node-appwrite";
@@ -24,7 +27,11 @@ export async function POST(request: Request) {
     const input = acceptanceSchema.parse(await request.json());
     protectDemoAdministration(undefined,input.userId,input.teamId);
     const membership = await getPublicTeams().updateMembershipStatus(input);
+    // The token is confirmed by Appwrite. Remember only the intended Team;
+    // a blocked caregiver can retry activation after explicit admin restoration.
+    // This cookie does not grant membership or application access.
     await rememberPendingTeam(input.teamId);
+    await checkConfirmedInvitation(input.teamId, membership.userId);
 
     const sessionSecret = await getSessionSecret();
     const signedIn = sessionSecret
@@ -38,6 +45,8 @@ export async function POST(request: Request) {
       circleName: membership.teamName,
     });
   } catch (error) {
+    if (error instanceof InvitationRecoveryRequiredError || error instanceof InvitationActivationUnavailableError) return Response.json({ message: error.message, code: error instanceof InvitationRecoveryRequiredError ? "recovery_required" : "activation_unavailable" }, { status: 403 });
+    if (error instanceof CaregiverMutationConflictError) return Response.json({ message: error.message, code: "caregiver_conflict" }, { status: 409 });
     if(error instanceof PublicDemoRestriction)return Response.json({message:error.message},{status:403});
     if (error instanceof z.ZodError) {
       return Response.json({ message: "This invitation link is incomplete." }, { status: 400 });

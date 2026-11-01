@@ -30,7 +30,7 @@ const { databaseId, tables, teams, users } = getServerAppwrite();
 let setupComplete = false;
 
 async function rowsFor(tableId: string) {
-  return tables.listRows({ databaseId, tableId, queries: [Query.equal("occurrenceId", [occurrenceId]), Query.limit(100)], total: false });
+  return tables.listRows({ databaseId, tableId, queries: [Query.equal(tableId === TABLES.fences ? "circleId" : "occurrenceId", [tableId === TABLES.fences ? circleId : occurrenceId]), Query.limit(100)], total: false });
 }
 
 async function removeRows(tableId: string, rows: Models.Row[]) {

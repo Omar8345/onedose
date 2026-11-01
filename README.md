@@ -214,6 +214,12 @@ npm run test:race
 npm run test:fencing
 npm run test:lifecycle
 npm run test:fixture-cleanup
+npm run test:hardening
+npm run test:occurrence-identity
+npm run test:logout
+npm run test:materialization
+npm run test:conflict-classification
+npm run test:recovery
 npm run test:demo
 npm run test:snapshot
 npm run test:demo-protection
@@ -230,12 +236,22 @@ npm run test:demo-protection
 | `test:demo`            | Demo login allowlist, origin checks, roles, and rate window             |
 | `test:snapshot`        | Transport failures, access denial, and refresh recovery                 |
 | `test:demo-protection` | Scoped OTP restrictions and schedule-management policy                  |
+| `test:hardening`       | Unrelated Team protection and revocation before a staged completion commits |
+| `test:occurrence-identity` | Concurrent app/worker generation, legacy IDs, rescheduling, and history |
+| `test:logout`         | Current-session revocation, failure propagation, and other-session isolation |
+| `test:materialization` | Paused app/worker creation, schedule lifecycle, and completed timing |
+| `test:conflict-classification` | Membership-counter contention and recoverable availability conflicts |
+| `test:recovery` | Fresh invitations, revoked access, and explicit restoration policy |
 
 Integration tests require configured Appwrite resources and appropriate API-key permissions. `test:safety` also needs a running Next.js server at `TEST_BASE_URL` (default `http://127.0.0.1:3000`). Run the suites serially for clear service-dependent evidence.
 
 On **31 October 2026, all 9 integration test suites passed** in a complete serial run against the configured Appwrite environment.
 
 Schedule and recipient suites create uniquely named synthetic users, a Team, circle, and recipients, then clean up their own resources. They do not require the legacy Nora seed or modify Mitchell Family Care.
+
+The 1 November hardening pass also verified Team ownership, transactionally fenced membership revocation, shared app/worker occurrence identity, and logout isolation. The [hardening verification report](docs/hardening-verification.md) distinguishes the DNS-interrupted run from the successful follow-up and lists release limitations.
+
+The [lifecycle hardening report](docs/lifecycle-hardening-verification.md) records the subsequent 20/20 serial checks, supplemental rechecks, and a separately recorded cleanup network timeout. Before deployment, `npm run release:reminder-preflight` must pass the read-only Function permission gate; live permission changes require separate approval.
 
 The race suite verifies database contention and snapshot convergence separately from browser Realtime behavior. The additional `test:fencing` suite exercises 25 distinct caregivers, repeated expired-lease takeover races, and paused stale completion/release transactions against isolated fixtures.
 

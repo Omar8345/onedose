@@ -20,7 +20,14 @@
     "test:race": "node --conditions=react-server --import tsx scripts/race-test.mts",
     "test:demo": "node --conditions=react-server --import tsx scripts/demo-test.mts",
     "test:snapshot": "node --conditions=react-server --import tsx scripts/snapshot-test.mts",
-    "test:demo-protection": "node --conditions=react-server --import tsx scripts/demo-protection-test.mts"
+    "test:demo-protection": "node --conditions=react-server --import tsx scripts/demo-protection-test.mts",
+    "test:hardening": "node --conditions=react-server --import tsx scripts/hardening-test.mts",
+    "test:occurrence-identity": "node --conditions=react-server --import tsx scripts/occurrence-identity-test.mts",
+    "test:logout": "node --conditions=react-server --import tsx scripts/logout-test.mts",
+    "test:materialization": "node --conditions=react-server --import tsx scripts/materialization-test.mts",
+    "test:conflict-classification": "node --conditions=react-server --import tsx scripts/conflict-classification-test.mts",
+    "test:recovery": "node --conditions=react-server --import tsx scripts/recovery-test.mts",
+    "release:reminder-preflight": "node --import tsx scripts/reminder-preflight.mts"
   },
   "dependencies": {
     "appwrite": "^29.1.0",

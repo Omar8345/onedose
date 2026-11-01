@@ -1,3 +1,5 @@
+import { patchSchedule } from "../../../functions/reminders/src/schedule-lifecycle.js";
+import { requireTeamMembership } from "@/lib/data/team-authorization";
 import { protectDemoAdministration } from "@/lib/demo/guard";
 import "server-only";
 
@@ -41,6 +43,7 @@ async function ownerContext(circleId: string, userId: string) {
     tables.getRow<MemberRow>({ databaseId, tableId: TABLES.members, rowId: stableRowId("mem", `${circleId}:${userId}`) }),
   ]);
   if (member.status !== "active" || member.role !== "owner") throw new RecipientForbiddenError();
+  await requireTeamMembership(circle.teamId, userId, true);
   return { databaseId, tables, circle };
 }
 
@@ -90,12 +93,9 @@ export async function updateRecipient(circleId: string, recipientId: string, use
       queries: [Query.equal("recipientId", [recipientId]), Query.isNull("archivedAt"), Query.limit(100)],
       total: false,
     });
-    await Promise.all(schedules.rows.map((schedule) => tables.updateRow({
-      databaseId,
-      tableId: TABLES.schedules,
-      rowId: schedule.$id,
-      data: { timezone: input.timezone },
-    })));
+    const changes = await Promise.allSettled(schedules.rows.map(schedule =>
+      patchSchedule(tables, databaseId, schedule.$id, circleId, { timezone: input.timezone })));
+    for (const change of changes) if (change.status === "rejected") throw change.reason;
   }
   return updated;
 }
