@@ -16,6 +16,11 @@
 
 ---
 
+> [!IMPORTANT]
+> **How I found two “successful” claims for one database row**
+>
+> Read the [concurrency debugging story](story.md) to see how delayed operations, stale ownership, and delete-and-recreate cycles exposed bugs that ordinary green tests missed.
+
 ## When care is shared, who's actually responsible?
 
 Imagine three family members helping care for someone they love.
@@ -225,23 +230,23 @@ npm run test:snapshot
 npm run test:demo-protection
 ```
 
-| Test                   | What it covers                                                          |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `test:schedules`       | Recurrence, schedule changes, and history preservation                  |
-| `test:reminders`       | Caregiver selection, availability, escalation, and duplicate prevention |
-| `test:safety`          | HTTP retries, authorization, idempotency, and corrections               |
-| `test:caregivers`      | Invitations, revocation, and role protection                            |
-| `test:recipients`      | Recipient permissions and isolation                                     |
-| `test:race`            | Concurrent claims, completions, and consistency                         |
-| `test:demo`            | Demo login allowlist, origin checks, roles, and rate window             |
-| `test:snapshot`        | Transport failures, access denial, and refresh recovery                 |
-| `test:demo-protection` | Scoped OTP restrictions and schedule-management policy                  |
-| `test:hardening`       | Unrelated Team protection and revocation before a staged completion commits |
-| `test:occurrence-identity` | Concurrent app/worker generation, legacy IDs, rescheduling, and history |
-| `test:logout`         | Current-session revocation, failure propagation, and other-session isolation |
-| `test:materialization` | Paused app/worker creation, schedule lifecycle, and completed timing |
-| `test:conflict-classification` | Membership-counter contention and recoverable availability conflicts |
-| `test:recovery` | Fresh invitations, revoked access, and explicit restoration policy |
+| Test                           | What it covers                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `test:schedules`               | Recurrence, schedule changes, and history preservation                       |
+| `test:reminders`               | Caregiver selection, availability, escalation, and duplicate prevention      |
+| `test:safety`                  | HTTP retries, authorization, idempotency, and corrections                    |
+| `test:caregivers`              | Invitations, revocation, and role protection                                 |
+| `test:recipients`              | Recipient permissions and isolation                                          |
+| `test:race`                    | Concurrent claims, completions, and consistency                              |
+| `test:demo`                    | Demo login allowlist, origin checks, roles, and rate window                  |
+| `test:snapshot`                | Transport failures, access denial, and refresh recovery                      |
+| `test:demo-protection`         | Scoped OTP restrictions and schedule-management policy                       |
+| `test:hardening`               | Unrelated Team protection and revocation before a staged completion commits  |
+| `test:occurrence-identity`     | Concurrent app/worker generation, legacy IDs, rescheduling, and history      |
+| `test:logout`                  | Current-session revocation, failure propagation, and other-session isolation |
+| `test:materialization`         | Paused app/worker creation, schedule lifecycle, and completed timing         |
+| `test:conflict-classification` | Membership-counter contention and recoverable availability conflicts         |
+| `test:recovery`                | Fresh invitations, revoked access, and explicit restoration policy           |
 
 Integration tests require configured Appwrite resources and appropriate API-key permissions. `test:safety` also needs a running Next.js server at `TEST_BASE_URL` (default `http://127.0.0.1:3000`). Run the suites serially for clear service-dependent evidence.
 
@@ -271,6 +276,7 @@ OneDose demonstrates care coordination. It does not diagnose, prescribe, or reco
 
 ### Technical documentation
 
+- [Concurrency debugging story](story.md)
 - [Product specification](docs/product.md)
 - [TablesDB data model](docs/data-model.md)
 - [Architecture decisions](docs/decisions.md)
